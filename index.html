@@ -16,10 +16,24 @@
         <p class="eyebrow">Obsidian Winds</p>
         <h1>Obsidian Clicker</h1>
       </div>
-      <div class="topbar-actions">
-        <button id="save-btn" type="button">Save</button>
-        <button id="reset-btn" type="button" class="danger">Reset</button>
-      </div>
+      <details class="top-menu" id="top-menu">
+        <summary>Menu</summary>
+        <div class="menu-panel">
+          <div class="menu-actions">
+            <button id="save-btn" type="button">Save</button>
+            <button id="reset-btn" type="button" class="danger">Reset</button>
+          </div>
+          <section class="menu-statistics" aria-labelledby="menu-statistics-heading">
+            <div class="section-heading compact-heading">
+              <div>
+                <p class="eyebrow">Menu</p>
+                <h2 id="menu-statistics-heading">Statistics</h2>
+              </div>
+            </div>
+            <div id="statistics-list" class="statistics-list"></div>
+          </section>
+        </div>
+      </details>
     </header>
 
     <main class="game-grid">
@@ -50,7 +64,7 @@
         </div>
       </section>
 
-      <aside class="side-panel" aria-label="Store, upgrades, and statistics">
+      <aside class="side-panel" aria-label="Store and upgrades">
         <section class="panel">
           <div class="section-heading">
             <div>
@@ -70,16 +84,6 @@
           </div>
           <div id="upgrade-list" class="stack-list"></div>
         </section>
-
-        <details class="panel statistics-panel" id="statistics-panel">
-          <summary>
-            <span>
-              <span class="eyebrow">Archive</span>
-              <strong>Statistics</strong>
-            </span>
-          </summary>
-          <div id="statistics-list" class="statistics-list"></div>
-        </details>
       </aside>
     </main>
   </div>
