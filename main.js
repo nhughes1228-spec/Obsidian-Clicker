@@ -2,15 +2,11 @@ const SAVE_KEY = "obsidian-clicker-save-v1";
 const LOGO_SRC = "assets/obsidian-winds-logo.png";
 
 const COST_GROWTH = 1.15;
-const GLINT_SPAWN_MIN_SECONDS = 60;
-const GLINT_SPAWN_MAX_SECONDS = 180;
-const GLINT_LIFETIME_SECONDS = 13;
 
 const GENERATORS = [
   {
     id: "whisperer",
     name: "Whisperer",
-    cookieRole: "Cursor",
     description: "Coaxes loose Shards from the edge of the wind.",
     baseCost: 15,
     baseRate: 0.1,
@@ -18,7 +14,6 @@ const GENERATORS = [
   {
     id: "galeLoom",
     name: "Gale Loom",
-    cookieRole: "Grandma",
     description: "Threads pressure into a steady obsidian draft.",
     baseCost: 100,
     baseRate: 1,
@@ -26,7 +21,6 @@ const GENERATORS = [
   {
     id: "obsidianSpire",
     name: "Obsidian Spire",
-    cookieRole: "Farm",
     description: "Anchors the storm and draws Shards through the mark.",
     baseCost: 1100,
     baseRate: 8,
@@ -34,7 +28,6 @@ const GENERATORS = [
   {
     id: "stormVault",
     name: "Storm Vault",
-    cookieRole: "Mine",
     description: "Stores a violent weather front behind black glass.",
     baseCost: 12000,
     baseRate: 47,
@@ -42,7 +35,6 @@ const GENERATORS = [
   {
     id: "forgeLine",
     name: "Forge Line",
-    cookieRole: "Factory",
     description: "Cuts raw obsidian into a repeatable production ritual.",
     baseCost: 130000,
     baseRate: 260,
@@ -50,7 +42,6 @@ const GENERATORS = [
   {
     id: "shardTreasury",
     name: "Shard Treasury",
-    cookieRole: "Bank",
     description: "Compounds every glimmer into a carefully guarded reserve.",
     baseCost: 1400000,
     baseRate: 1400,
@@ -58,7 +49,6 @@ const GENERATORS = [
   {
     id: "obsidianShrine",
     name: "Obsidian Shrine",
-    cookieRole: "Temple",
     description: "Turns discipline, breath, and ceremony into Shards.",
     baseCost: 20000000,
     baseRate: 7800,
@@ -66,7 +56,6 @@ const GENERATORS = [
   {
     id: "windOracle",
     name: "Wind Oracle",
-    cookieRole: "Wizard Tower",
     description: "Reads the pressure changes before they become real.",
     baseCost: 330000000,
     baseRate: 44000,
@@ -74,7 +63,6 @@ const GENERATORS = [
   {
     id: "riftCaravan",
     name: "Rift Caravan",
-    cookieRole: "Shipment",
     description: "Imports black glass from storms too distant to name.",
     baseCost: 5100000000,
     baseRate: 260000,
@@ -82,7 +70,6 @@ const GENERATORS = [
   {
     id: "glassCrucible",
     name: "Glass Crucible",
-    cookieRole: "Alchemy Lab",
     description: "Boils silence into shine and pressure into profit.",
     baseCost: 75000000000,
     baseRate: 1600000,
@@ -90,7 +77,6 @@ const GENERATORS = [
   {
     id: "blackglassPortal",
     name: "Blackglass Portal",
-    cookieRole: "Portal",
     description: "Opens a clean cut through the atmosphere.",
     baseCost: 1000000000000,
     baseRate: 10000000,
@@ -98,7 +84,6 @@ const GENERATORS = [
   {
     id: "echoChronometer",
     name: "Echo Chronometer",
-    cookieRole: "Time Machine",
     description: "Collects Shards a few seconds before they should exist.",
     baseCost: 14000000000000,
     baseRate: 65000000,
@@ -106,7 +91,6 @@ const GENERATORS = [
   {
     id: "nullCondenser",
     name: "Null Condenser",
-    cookieRole: "Antimatter Condenser",
     description: "Condenses absence itself into something spendable.",
     baseCost: 170000000000000,
     baseRate: 430000000,
@@ -114,7 +98,6 @@ const GENERATORS = [
   {
     id: "midnightPrism",
     name: "Midnight Prism",
-    cookieRole: "Prism",
     description: "Splits one beam of darkness into a thousand clean edges.",
     baseCost: 2100000000000000,
     baseRate: 2900000000,
@@ -122,7 +105,6 @@ const GENERATORS = [
   {
     id: "chanceReed",
     name: "Chance Reed",
-    cookieRole: "Chancemaker",
     description: "Bends probability until good fortune squeaks.",
     baseCost: 26000000000000000,
     baseRate: 21000000000,
@@ -130,7 +112,6 @@ const GENERATORS = [
   {
     id: "fractalScore",
     name: "Fractal Score",
-    cookieRole: "Fractal Engine",
     description: "Repeats the same phrase forever, somehow larger every time.",
     baseCost: 310000000000000000,
     baseRate: 150000000000,
@@ -163,7 +144,7 @@ const CLICK_UPGRADES = [
     name: "Resonant Touch",
     description: "Clicks borrow a small pulse from your passive production.",
     cost: 10000,
-    unlock: (state) => getPassiveRate() >= 25,
+    unlock: () => getPassiveRate() >= 25,
     apply: (state) => {
       state.clickCpsPercent += 0.01;
     },
@@ -173,7 +154,7 @@ const CLICK_UPGRADES = [
     name: "Conducted Pressure",
     description: "Clicks borrow even more force from the whole ensemble.",
     cost: 100000,
-    unlock: (state) => getPassiveRate() >= 250,
+    unlock: () => getPassiveRate() >= 250,
     apply: (state) => {
       state.clickCpsPercent += 0.01;
     },
@@ -194,9 +175,6 @@ const state = createFreshState();
 let lastTick = performance.now();
 let saveTimer = 0;
 let renderQueued = false;
-let glintTimer = randomGlintDelay();
-let activeGlint = null;
-let glintButton = null;
 
 const els = {
   shardTotal: document.querySelector("#shard-total"),
@@ -250,7 +228,6 @@ function createFreshState() {
     generatorCounts,
     generatorMultipliers,
     purchasedUpgrades: [],
-    activeBuffs: [],
     log: ["The first Shards wait in the wind."],
     lastSavedAt: null,
   };
@@ -295,46 +272,15 @@ function tick(now) {
 }
 
 function update(deltaSeconds) {
-  updateBuffs(deltaSeconds);
-
   const rate = getPassiveRate();
   if (rate > 0) {
     gainShards(rate * deltaSeconds);
   }
 
-  updateGlint(deltaSeconds);
-
   saveTimer += deltaSeconds;
   if (saveTimer >= 15) {
     saveTimer = 0;
     saveGame(false);
-  }
-}
-
-function updateBuffs(deltaSeconds) {
-  const before = state.activeBuffs.length;
-  state.activeBuffs = state.activeBuffs
-    .map((buff) => ({ ...buff, remaining: buff.remaining - deltaSeconds }))
-    .filter((buff) => buff.remaining > 0);
-
-  if (before !== state.activeBuffs.length) {
-    addLog("A temporary resonance fades.");
-  }
-}
-
-function updateGlint(deltaSeconds) {
-  if (activeGlint) {
-    activeGlint.remaining -= deltaSeconds;
-    if (activeGlint.remaining <= 0) {
-      removeGlint();
-      glintTimer = randomGlintDelay();
-    }
-    return;
-  }
-
-  glintTimer -= deltaSeconds;
-  if (glintTimer <= 0) {
-    spawnGlint();
   }
 }
 
@@ -346,23 +292,13 @@ function gainShards(amount) {
 
 function getClickPower() {
   const cpsClickBonus = getPassiveRate() * state.clickCpsPercent;
-  return (state.clickMultiplier + cpsClickBonus) * getClickMultiplierFromBuffs();
+  return state.clickMultiplier + cpsClickBonus;
 }
 
 function getPassiveRate() {
-  const baseRate = GENERATORS.reduce((total, generator) => {
+  return GENERATORS.reduce((total, generator) => {
     return total + getOwned(state, generator.id) * generator.baseRate * state.generatorMultipliers[generator.id];
   }, 0);
-
-  return baseRate * getPassiveMultiplierFromBuffs();
-}
-
-function getPassiveMultiplierFromBuffs() {
-  return state.activeBuffs.reduce((total, buff) => total * (buff.cpsMultiplier || 1), 1);
-}
-
-function getClickMultiplierFromBuffs() {
-  return state.activeBuffs.reduce((total, buff) => total * (buff.clickMultiplier || 1), 1);
 }
 
 function getOwned(targetState, id) {
@@ -400,92 +336,6 @@ function buyUpgrade(id) {
   render();
 }
 
-function spawnGlint() {
-  const stage = document.querySelector(".logo-stage");
-  if (!stage) return;
-
-  removeGlint();
-
-  activeGlint = {
-    remaining: GLINT_LIFETIME_SECONDS,
-  };
-
-  glintButton = document.createElement("button");
-  glintButton.type = "button";
-  glintButton.className = "glint-button";
-  glintButton.textContent = "✦";
-  glintButton.setAttribute("aria-label", "Catch the glint");
-  Object.assign(glintButton.style, {
-    position: "absolute",
-    zIndex: "5",
-    width: "64px",
-    height: "64px",
-    borderRadius: "50%",
-    border: "2px solid rgba(255,255,255,0.9)",
-    background: "radial-gradient(circle, #fff9c7 0%, #f0c04c 42%, #bf3f2f 100%)",
-    boxShadow: "0 0 28px rgba(213, 156, 68, 0.85), 0 12px 28px rgba(24, 25, 28, 0.24)",
-    color: "#18191c",
-    cursor: "pointer",
-    fontSize: "2rem",
-    fontWeight: "900",
-    transform: "translate(-50%, -50%)",
-  });
-
-  const x = 12 + Math.random() * 76;
-  const y = 12 + Math.random() * 76;
-  glintButton.style.left = `${x}%`;
-  glintButton.style.top = `${y}%`;
-
-  glintButton.addEventListener("click", handleGlintClick);
-  stage.append(glintButton);
-  addLog("A glint flashes across the obsidian.");
-}
-
-function handleGlintClick(event) {
-  event.stopPropagation();
-
-  const roll = Math.random();
-  const rate = getPassiveRate();
-
-  if (roll < 0.52) {
-    const luckyAmount = Math.max(13, Math.min(state.shards * 0.15 + 13, rate * 60 * 15 + 13));
-    gainShards(luckyAmount);
-    addLog(`Lucky glint! Gained ${formatNumber(luckyAmount)} Shards.`);
-  } else if (roll < 0.86) {
-    state.activeBuffs.push({
-      id: `frenzy-${Date.now()}`,
-      name: "Frenzy",
-      cpsMultiplier: 7,
-      remaining: 77,
-    });
-    addLog("Frenzy! Production x7 for 77 seconds.");
-  } else {
-    state.activeBuffs.push({
-      id: `click-frenzy-${Date.now()}`,
-      name: "Click Frenzy",
-      clickMultiplier: 77,
-      remaining: 13,
-    });
-    addLog("Click Frenzy! Click power x77 for 13 seconds.");
-  }
-
-  spawnFloat(getClickPower(), event);
-  removeGlint();
-  glintTimer = randomGlintDelay();
-  saveGame(false);
-  render();
-}
-
-function removeGlint() {
-  activeGlint = null;
-  glintButton?.remove();
-  glintButton = null;
-}
-
-function randomGlintDelay() {
-  return GLINT_SPAWN_MIN_SECONDS + Math.random() * (GLINT_SPAWN_MAX_SECONDS - GLINT_SPAWN_MIN_SECONDS);
-}
-
 function render() {
   renderQueued = false;
   const clickPower = getClickPower();
@@ -513,7 +363,7 @@ function renderGenerators() {
   for (const generator of GENERATORS) {
     const cost = getGeneratorCost(generator);
     const owned = getOwned(state, generator.id);
-    const rate = generator.baseRate * state.generatorMultipliers[generator.id] * getPassiveMultiplierFromBuffs();
+    const rate = generator.baseRate * state.generatorMultipliers[generator.id];
     seen.add(generator.id);
 
     let button = els.generatorList.querySelector(`[data-generator-id="${generator.id}"]`);
@@ -531,7 +381,6 @@ function renderGenerators() {
       <div>
         <h3>${generator.name}</h3>
         <p>${generator.description}</p>
-        <small class="cookie-role">Cookie role: ${generator.cookieRole}</small>
       </div>
       <div class="item-meta">
         <span class="price">${formatNumber(cost)}</span>
@@ -542,7 +391,7 @@ function renderGenerators() {
   }
 
   for (const button of els.generatorList.querySelectorAll("[data-generator-id]")) {
-    if (!seen.has(button.dataset.generatorId)) {
+    if (!seen.has(button.datasetGeneratorId)) {
       button.remove();
     }
   }
@@ -600,10 +449,7 @@ function renderUpgrades() {
 
 function renderLog() {
   els.eventLog.innerHTML = "";
-  const buffSummary = state.activeBuffs.map((buff) => `${buff.name}: ${Math.ceil(buff.remaining)}s`);
-  const entries = [...state.log.slice(-6), ...buffSummary].reverse();
-
-  for (const entry of entries) {
+  for (const entry of state.log.slice(-6).reverse()) {
     const item = document.createElement("p");
     item.textContent = entry;
     els.eventLog.append(item);
@@ -646,7 +492,6 @@ function loadGame() {
     state.generatorCounts = { ...fresh.generatorCounts, ...saved.generatorCounts };
     state.generatorMultipliers = { ...fresh.generatorMultipliers, ...saved.generatorMultipliers };
     state.purchasedUpgrades = Array.isArray(saved.purchasedUpgrades) ? saved.purchasedUpgrades : [];
-    state.activeBuffs = Array.isArray(saved.activeBuffs) ? saved.activeBuffs : [];
     state.clickCpsPercent = Number.isFinite(saved.clickCpsPercent) ? saved.clickCpsPercent : fresh.clickCpsPercent;
     state.totalClicks = Number.isFinite(saved.totalClicks) ? saved.totalClicks : fresh.totalClicks;
     state.log = Array.isArray(saved.log) && saved.log.length ? saved.log.slice(-20) : fresh.log;
@@ -660,8 +505,6 @@ function resetGame() {
   localStorage.removeItem(SAVE_KEY);
   const fresh = createFreshState();
   Object.assign(state, fresh);
-  removeGlint();
-  glintTimer = randomGlintDelay();
   addLog("Progress reset.");
   render();
 }
@@ -720,21 +563,13 @@ function renderGameToText() {
     clickPower: getClickPower(),
     clickCpsPercent: state.clickCpsPercent,
     passiveRate: Number(getPassiveRate().toFixed(2)),
-    activeBuffs: state.activeBuffs.map((buff) => ({
-      name: buff.name,
-      remaining: Number(buff.remaining.toFixed(1)),
-      cpsMultiplier: buff.cpsMultiplier || 1,
-      clickMultiplier: buff.clickMultiplier || 1,
-    })),
-    glintVisible: Boolean(activeGlint),
     generators: GENERATORS.map((generator) => ({
       id: generator.id,
       name: generator.name,
-      cookieRole: generator.cookieRole,
       owned: getOwned(state, generator.id),
       cost: getGeneratorCost(generator),
       baseRate: generator.baseRate,
-      rateEach: generator.baseRate * state.generatorMultipliers[generator.id] * getPassiveMultiplierFromBuffs(),
+      rateEach: generator.baseRate * state.generatorMultipliers[generator.id],
       affordable: state.shards >= getGeneratorCost(generator),
     })),
     availableUpgrades: UPGRADES.filter((upgrade) => !state.purchasedUpgrades.includes(upgrade.id) && upgrade.unlock(state)).map((upgrade) => ({
