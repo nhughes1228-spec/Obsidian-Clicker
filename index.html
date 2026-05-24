@@ -40,10 +40,6 @@
 
         <div class="stat-strip">
           <div>
-            <span id="lifetime-shards">0</span>
-            <small>Lifetime</small>
-          </div>
-          <div>
             <span id="click-power">1</span>
             <small>Click Power</small>
           </div>
@@ -54,7 +50,7 @@
         </div>
       </section>
 
-      <aside class="side-panel" aria-label="Store and upgrades">
+      <aside class="side-panel" aria-label="Store, upgrades, and statistics">
         <section class="panel">
           <div class="section-heading">
             <div>
@@ -75,15 +71,15 @@
           <div id="upgrade-list" class="stack-list"></div>
         </section>
 
-        <section class="panel">
-          <div class="section-heading">
-            <div>
-              <p class="eyebrow">Ledger</p>
-              <h2>Recent Events</h2>
-            </div>
-          </div>
-          <div id="event-log" class="event-log"></div>
-        </section>
+        <details class="panel statistics-panel" id="statistics-panel">
+          <summary>
+            <span>
+              <span class="eyebrow">Archive</span>
+              <strong>Statistics</strong>
+            </span>
+          </summary>
+          <div id="statistics-list" class="statistics-list"></div>
+        </details>
       </aside>
     </main>
   </div>
