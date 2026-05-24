@@ -3,6 +3,7 @@ const LOGO_SRC = "assets/obsidian-winds-logo.png";
 
 const COST_GROWTH = 1.15;
 const PRESS_FEEDBACK_MS = 95;
+const RIFT_BASE_SHARDS = 1000000;
 
 const GENERATORS = [
   {
@@ -188,6 +189,8 @@ const els = {
   floatLayer: document.querySelector("#float-layer"),
   generatorList: document.querySelector("#generator-list"),
   upgradeList: document.querySelector("#upgrade-list"),
+  riftPreview: document.querySelector("#rift-preview"),
+  enterRiftBtn: document.querySelector("#enter-rift-btn"),
   statisticsList: document.querySelector("#statistics-list"),
   saveBtn: document.querySelector("#save-btn"),
   resetBtn: document.querySelector("#reset-btn"),
@@ -229,6 +232,11 @@ function createFreshState() {
     generatorCounts,
     generatorMultipliers,
     purchasedUpgrades: [],
+    echoes: 0,
+    totalEchoesEarned: 0,
+    resonance: 0,
+    riftEntries: 0,
+    bestPassiveRate: 0,
     log: ["The first Shards wait in the wind."],
     lastSavedAt: null,
   };
@@ -243,6 +251,7 @@ function init() {
   });
 
   els.logoButton.addEventListener("pointerdown", handleLogoPress, { passive: false });
+  els.enterRiftBtn.addEventListener("click", enterRift);
   els.saveBtn.addEventListener("click", () => {
     saveGame();
     addLog("Progress saved.");
@@ -289,6 +298,7 @@ function update(deltaSeconds) {
   const rate = getPassiveRate();
   if (rate > 0) {
     gainShards(rate * deltaSeconds);
+    state.bestPassiveRate = Math.max(state.bestPassiveRate || 0, rate);
   }
 
   saveTimer += deltaSeconds;
@@ -304,9 +314,14 @@ function gainShards(amount) {
   state.lifetimeShards += amount;
 }
 
+function getProductionMultiplier() {
+  return 1 + state.resonance * 0.01;
+}
+
 function getClickPower() {
+  const resonanceBonus = getProductionMultiplier();
   const cpsClickBonus = getPassiveRate() * state.clickCpsPercent;
-  return state.clickMultiplier + cpsClickBonus;
+  return state.clickMultiplier * resonanceBonus + cpsClickBonus;
 }
 
 function getPassiveRate() {
@@ -314,7 +329,7 @@ function getPassiveRate() {
 }
 
 function getGeneratorContribution(generator) {
-  return getOwned(state, generator.id) * generator.baseRate * state.generatorMultipliers[generator.id];
+  return getOwned(state, generator.id) * generator.baseRate * state.generatorMultipliers[generator.id] * getProductionMultiplier();
 }
 
 function getOwned(targetState, id) {
@@ -327,6 +342,40 @@ function getTotalGeneratorsOwned() {
 
 function getGeneratorCost(generator) {
   return Math.floor(generator.baseCost * Math.pow(COST_GROWTH, getOwned(state, generator.id)));
+}
+
+function getPotentialResonance() {
+  return Math.floor(Math.cbrt(Math.max(0, state.lifetimeShards) / RIFT_BASE_SHARDS));
+}
+
+function getAvailableEchoes() {
+  return Math.max(0, getPotentialResonance() - state.totalEchoesEarned);
+}
+
+function enterRift() {
+  const echoesGained = getAvailableEchoes();
+  if (echoesGained <= 0) return;
+
+  const nextResonance = state.totalEchoesEarned + echoesGained;
+  const message = `Enter the Rift? This will dissolve your current Shards, generators, and temporary upgrades into ${formatNumber(echoesGained)} Echo${echoesGained === 1 ? "" : "es"}.`;
+  if (!window.confirm(message)) return;
+
+  const preserved = {
+    lifetimeShards: state.lifetimeShards,
+    totalClicks: state.totalClicks,
+    echoes: state.echoes + echoesGained,
+    totalEchoesEarned: nextResonance,
+    resonance: nextResonance,
+    riftEntries: state.riftEntries + 1,
+    bestPassiveRate: state.bestPassiveRate || 0,
+    lastSavedAt: state.lastSavedAt,
+  };
+
+  const fresh = createFreshState();
+  Object.assign(state, fresh, preserved);
+  state.log = ["The Rift closes. The storm begins again, but it remembers."];
+  saveGame();
+  render();
 }
 
 function buyGenerator(id) {
@@ -368,6 +417,7 @@ function render() {
 
   renderGenerators();
   renderUpgrades();
+  renderRift();
   renderStatistics();
 }
 
@@ -414,7 +464,7 @@ function renderGenerators() {
       <div class="item-meta">
         <span class="price">${formatNumber(cost)}</span>
         <span>${nextLabel}</span>
-        <span>+${formatNumber(owned > 0 ? contribution : generator.baseRate)}/s</span>
+        <span>+${formatNumber(owned > 0 ? contribution : generator.baseRate * getProductionMultiplier())}/s</span>
         <span>${formatPercent(contributionPercent)} total</span>
       </div>
     `;
@@ -480,6 +530,31 @@ function renderUpgrades() {
   }
 }
 
+function renderRift() {
+  const availableEchoes = getAvailableEchoes();
+  const potentialResonance = getPotentialResonance();
+  const nextResonance = state.totalEchoesEarned + availableEchoes;
+  const bonusNow = (getProductionMultiplier() - 1) * 100;
+  const bonusAfter = nextResonance;
+
+  els.enterRiftBtn.disabled = availableEchoes <= 0;
+  els.enterRiftBtn.textContent = availableEchoes > 0 ? "Enter the Rift" : "The Rift Sleeps";
+
+  els.riftPreview.innerHTML = [
+    ["Echoes Held", formatNumber(state.echoes)],
+    ["Echoes Waiting", `+${formatNumber(availableEchoes)}`],
+    ["Resonance", formatNumber(state.resonance)],
+    ["Production Bonus", `${formatPercent(bonusNow)} now · ${formatPercent(bonusAfter)} after`],
+    ["Next Echo", `${formatNumber(getShardsForResonance(potentialResonance + 1))} lifetime Shards`],
+  ]
+    .map(([label, value]) => `<div class="rift-preview-row"><span>${label}</span><strong>${value}</strong></div>`)
+    .join("");
+}
+
+function getShardsForResonance(level) {
+  return Math.pow(level, 3) * RIFT_BASE_SHARDS;
+}
+
 function renderStatistics() {
   const stats = [
     ["Current Shards", formatNumber(Math.floor(state.shards))],
@@ -487,8 +562,14 @@ function renderStatistics() {
     ["Lifetime Clicks", formatNumber(state.totalClicks)],
     ["Click Power", formatNumber(getClickPower())],
     ["Shards / Second", formatNumber(getPassiveRate())],
+    ["Best Shards / Second", formatNumber(state.bestPassiveRate || 0)],
     ["Generators Owned", formatNumber(getTotalGeneratorsOwned())],
     ["Upgrades Purchased", formatNumber(state.purchasedUpgrades.length)],
+    ["Echoes Held", formatNumber(state.echoes)],
+    ["Lifetime Echoes", formatNumber(state.totalEchoesEarned)],
+    ["Resonance", formatNumber(state.resonance)],
+    ["Rift Entries", formatNumber(state.riftEntries)],
+    ["Resonance Bonus", formatPercent((getProductionMultiplier() - 1) * 100)],
     ["Click CPS Bonus", formatPercent(state.clickCpsPercent * 100)],
   ];
 
@@ -535,6 +616,11 @@ function loadGame() {
     state.purchasedUpgrades = Array.isArray(saved.purchasedUpgrades) ? saved.purchasedUpgrades : [];
     state.clickCpsPercent = Number.isFinite(saved.clickCpsPercent) ? saved.clickCpsPercent : fresh.clickCpsPercent;
     state.totalClicks = Number.isFinite(saved.totalClicks) ? saved.totalClicks : fresh.totalClicks;
+    state.echoes = Number.isFinite(saved.echoes) ? saved.echoes : fresh.echoes;
+    state.totalEchoesEarned = Number.isFinite(saved.totalEchoesEarned) ? saved.totalEchoesEarned : fresh.totalEchoesEarned;
+    state.resonance = Number.isFinite(saved.resonance) ? saved.resonance : state.totalEchoesEarned;
+    state.riftEntries = Number.isFinite(saved.riftEntries) ? saved.riftEntries : fresh.riftEntries;
+    state.bestPassiveRate = Number.isFinite(saved.bestPassiveRate) ? saved.bestPassiveRate : fresh.bestPassiveRate;
     state.log = Array.isArray(saved.log) && saved.log.length ? saved.log.slice(-20) : fresh.log;
   } catch (error) {
     addLog("Save data could not be loaded.");
@@ -542,7 +628,7 @@ function loadGame() {
 }
 
 function resetGame() {
-  if (!window.confirm("Reset all Obsidian Clicker progress?")) return;
+  if (!window.confirm("Reset all Obsidian Clicker progress? This also clears Echoes and Resonance.")) return;
   localStorage.removeItem(SAVE_KEY);
   const fresh = createFreshState();
   Object.assign(state, fresh);
@@ -609,6 +695,12 @@ function renderGameToText() {
     shards: Number(state.shards.toFixed(2)),
     lifetimeShards: Number(state.lifetimeShards.toFixed(2)),
     totalClicks: state.totalClicks,
+    echoes: state.echoes,
+    totalEchoesEarned: state.totalEchoesEarned,
+    resonance: state.resonance,
+    availableEchoes: getAvailableEchoes(),
+    productionMultiplier: getProductionMultiplier(),
+    riftEntries: state.riftEntries,
     clickPower: getClickPower(),
     clickCpsPercent: state.clickCpsPercent,
     passiveRate: Number(getPassiveRate().toFixed(2)),
