@@ -33,6 +33,7 @@
 html {
   min-height: 100%;
   background: var(--void);
+  touch-action: manipulation;
 }
 
 body {
@@ -151,7 +152,10 @@ h2 {
   list-style: none;
   text-align: center;
   text-transform: uppercase;
+  touch-action: manipulation;
   transition: transform 140ms ease, border-color 140ms ease, background 140ms ease, box-shadow 140ms ease;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .top-menu summary::-webkit-details-marker {
@@ -220,7 +224,10 @@ h2 {
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+  touch-action: manipulation;
   transition: transform 140ms ease, border-color 140ms ease, background 140ms ease;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .menu-actions button:hover {
@@ -314,6 +321,9 @@ h2 {
   place-items: center;
   min-height: 390px;
   isolation: isolate;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-touch-callout: none;
 }
 
 .logo-stage::before {
@@ -363,10 +373,12 @@ h2 {
   border-radius: 999px;
   background: transparent;
   cursor: pointer;
+  touch-action: manipulation;
   transform: translate3d(0, 0, 0) scale(1);
-  transition: transform 120ms ease, filter 120ms ease;
+  transition: transform 80ms ease, filter 80ms ease;
   user-select: none;
   -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
 }
 
 .logo-button:hover {
@@ -376,7 +388,8 @@ h2 {
 
 .logo-button:active,
 .logo-button.is-pressed {
-  transform: translate3d(0, 5px, 0) scale(0.965);
+  filter: drop-shadow(0 0 42px rgba(133, 1, 207, 0.52));
+  transform: translate3d(0, 5px, 0) scale(0.95);
 }
 
 .logo-button:focus {
@@ -398,6 +411,8 @@ h2 {
   transform: translate(0.5%, -2.35%);
   transform-origin: center;
   filter: drop-shadow(0 26px 44px rgba(0, 0, 0, 0.52));
+  user-select: none;
+  -webkit-user-drag: none;
 }
 
 .logo-fallback {
@@ -438,6 +453,7 @@ h2 {
   text-shadow: 0 0 18px rgba(133, 1, 207, 0.75), 0 12px 26px rgba(0, 0, 0, 0.58);
   transform: translate(-50%, -50%);
   animation: floatUp 950ms cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+  will-change: transform, opacity;
 }
 
 @keyframes floatUp {
@@ -512,7 +528,10 @@ h2 {
   border-radius: 14px;
   text-align: left;
   cursor: pointer;
+  touch-action: manipulation;
   transition: transform 130ms ease, border-color 130ms ease, background 130ms ease, opacity 130ms ease;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .item-card:hover:not(:disabled) {
@@ -640,7 +659,8 @@ h2 {
   }
 
   .logo-stage {
-    min-height: 315px;
+    min-height: 325px;
+    margin-bottom: 12px;
   }
 
   .logo-stage::before {
@@ -649,6 +669,10 @@ h2 {
 
   .logo-button {
     width: min(68vw, 360px);
+  }
+
+  .stat-strip {
+    margin-top: 8px;
   }
 }
 
@@ -660,6 +684,23 @@ h2 {
   .menu-actions,
   .stat-strip {
     grid-template-columns: 1fr;
+  }
+
+  .logo-stage {
+    min-height: 305px;
+    margin-bottom: 18px;
+  }
+
+  .logo-stage::before {
+    width: min(82vw, 365px);
+  }
+
+  .logo-button {
+    width: min(72vw, 315px);
+  }
+
+  .stat-strip {
+    margin-top: 12px;
   }
 
   .item-card {
