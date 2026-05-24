@@ -101,6 +101,73 @@
       filter: saturate(0.75);
     }
 
+    .riftwork-list {
+      display: grid;
+      gap: 8px;
+    }
+
+    .riftwork-card {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 12px;
+      width: 100%;
+      padding: 11px;
+      border: 1px solid rgba(255, 255, 255, 0.075);
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.035);
+      color: var(--ink);
+      cursor: pointer;
+      text-align: left;
+      touch-action: manipulation;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .riftwork-card:hover:not(:disabled) {
+      border-color: rgba(133, 1, 207, 0.58);
+      background: rgba(114, 1, 177, 0.14);
+      transform: translateY(-1px);
+    }
+
+    .riftwork-card:disabled {
+      cursor: not-allowed;
+      opacity: 0.46;
+      filter: saturate(0.8);
+    }
+
+    .riftwork-card.is-owned {
+      cursor: default;
+      opacity: 0.72;
+    }
+
+    .riftwork-card h3 {
+      margin: 0 0 4px;
+      font-size: 0.9rem;
+      font-weight: 900;
+      letter-spacing: -0.01em;
+    }
+
+    .riftwork-card p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.78rem;
+      font-weight: 600;
+      line-height: 1.36;
+    }
+
+    .riftwork-meta {
+      display: grid;
+      align-content: center;
+      justify-items: end;
+      gap: 4px;
+      min-width: 78px;
+      color: var(--muted);
+      font-size: 0.72rem;
+      font-weight: 800;
+      text-align: right;
+      text-transform: uppercase;
+    }
+
     @media (max-width: 900px) {
       #shard-total {
         font-size: clamp(1.55rem, 10vw, 4.2rem);
@@ -116,13 +183,20 @@
         line-height: 1.12;
       }
 
-      .rift-preview-row {
+      .rift-preview-row,
+      .riftwork-card {
         align-items: flex-start;
-        flex-direction: column;
+        grid-template-columns: 1fr;
         gap: 4px;
       }
 
-      .rift-preview-row strong {
+      .rift-preview-row {
+        flex-direction: column;
+      }
+
+      .rift-preview-row strong,
+      .riftwork-meta {
+        justify-items: start;
         text-align: left;
       }
     }
@@ -153,6 +227,17 @@
             <p class="rift-copy">Dissolve this storm into Echo. Your current Shards, generators, and temporary upgrades will vanish; your Echoes and Resonance will remain.</p>
             <div id="rift-preview" class="rift-preview"></div>
             <button id="enter-rift-btn" class="rift-button" type="button">Enter the Rift</button>
+          </section>
+
+          <section class="rift-panel" aria-labelledby="riftwork-heading">
+            <div class="section-heading compact-heading">
+              <div>
+                <p class="eyebrow">Echo Shop</p>
+                <h2 id="riftwork-heading">Riftwork</h2>
+              </div>
+            </div>
+            <p class="rift-copy">Spend Echoes on permanent production rites that survive every journey through the Rift.</p>
+            <div id="riftwork-list" class="riftwork-list"></div>
           </section>
 
           <section class="menu-statistics" aria-labelledby="menu-statistics-heading">
