@@ -179,7 +179,6 @@ let renderQueued = false;
 const els = {
   shardTotal: document.querySelector("#shard-total"),
   rateSummary: document.querySelector("#rate-summary"),
-  lifetimeShards: document.querySelector("#lifetime-shards"),
   clickPower: document.querySelector("#click-power"),
   passiveRate: document.querySelector("#passive-rate"),
   logoButton: document.querySelector("#logo-button"),
@@ -187,7 +186,7 @@ const els = {
   floatLayer: document.querySelector("#float-layer"),
   generatorList: document.querySelector("#generator-list"),
   upgradeList: document.querySelector("#upgrade-list"),
-  eventLog: document.querySelector("#event-log"),
+  statisticsList: document.querySelector("#statistics-list"),
   saveBtn: document.querySelector("#save-btn"),
   resetBtn: document.querySelector("#reset-btn"),
 };
@@ -296,13 +295,19 @@ function getClickPower() {
 }
 
 function getPassiveRate() {
-  return GENERATORS.reduce((total, generator) => {
-    return total + getOwned(state, generator.id) * generator.baseRate * state.generatorMultipliers[generator.id];
-  }, 0);
+  return GENERATORS.reduce((total, generator) => total + getGeneratorContribution(generator), 0);
+}
+
+function getGeneratorContribution(generator) {
+  return getOwned(state, generator.id) * generator.baseRate * state.generatorMultipliers[generator.id];
 }
 
 function getOwned(targetState, id) {
   return targetState.generatorCounts[id] || 0;
+}
+
+function getTotalGeneratorsOwned() {
+  return Object.values(state.generatorCounts).reduce((total, count) => total + count, 0);
 }
 
 function getGeneratorCost(generator) {
@@ -343,13 +348,12 @@ function render() {
 
   els.shardTotal.textContent = `${formatNumber(Math.floor(state.shards))} Shards`;
   els.rateSummary.textContent = `+${formatNumber(clickPower)} per click · ${formatNumber(passiveRate)} per second`;
-  els.lifetimeShards.textContent = formatNumber(Math.floor(state.lifetimeShards));
   els.clickPower.textContent = formatNumber(clickPower);
   els.passiveRate.textContent = formatNumber(passiveRate);
 
   renderGenerators();
   renderUpgrades();
-  renderLog();
+  renderStatistics();
 }
 
 function scheduleRender() {
@@ -358,13 +362,23 @@ function scheduleRender() {
   requestAnimationFrame(render);
 }
 
+function getVisibleGenerators() {
+  const ownedGenerators = GENERATORS.filter((generator) => getOwned(state, generator.id) > 0);
+  const nextUnpurchased = GENERATORS.find((generator) => getOwned(state, generator.id) === 0);
+  return nextUnpurchased ? [...ownedGenerators, nextUnpurchased] : ownedGenerators;
+}
+
 function renderGenerators() {
-  const seen = new Set();
-  for (const generator of GENERATORS) {
+  const visibleGenerators = getVisibleGenerators();
+  const visibleIds = new Set(visibleGenerators.map((generator) => generator.id));
+  const passiveRate = getPassiveRate();
+
+  for (const generator of visibleGenerators) {
     const cost = getGeneratorCost(generator);
     const owned = getOwned(state, generator.id);
-    const rate = generator.baseRate * state.generatorMultipliers[generator.id];
-    seen.add(generator.id);
+    const contribution = getGeneratorContribution(generator);
+    const contributionPercent = passiveRate > 0 ? (contribution / passiveRate) * 100 : 0;
+    const nextLabel = owned === 0 ? "Next" : `Owned ${owned}`;
 
     let button = els.generatorList.querySelector(`[data-generator-id="${generator.id}"]`);
     if (!button) {
@@ -384,24 +398,29 @@ function renderGenerators() {
       </div>
       <div class="item-meta">
         <span class="price">${formatNumber(cost)}</span>
-        <span>Owned ${owned}</span>
-        <span>+${formatNumber(rate)}/s</span>
+        <span>${nextLabel}</span>
+        <span>+${formatNumber(owned > 0 ? contribution : generator.baseRate)}/s</span>
+        <span>${formatPercent(contributionPercent)} total</span>
       </div>
     `;
   }
 
   for (const button of els.generatorList.querySelectorAll("[data-generator-id]")) {
-    if (!seen.has(button.dataset.generatorId)) {
+    if (!visibleIds.has(button.dataset.generatorId)) {
       button.remove();
     }
   }
 }
 
-function renderUpgrades() {
-  const available = UPGRADES.filter((upgrade) => !state.purchasedUpgrades.includes(upgrade.id) && upgrade.unlock(state));
-  const seen = new Set();
+function getVisibleUpgrades() {
+  return UPGRADES.filter((upgrade) => !state.purchasedUpgrades.includes(upgrade.id) && upgrade.unlock(state));
+}
 
-  if (!available.length) {
+function renderUpgrades() {
+  const visibleUpgrades = getVisibleUpgrades();
+  const visibleIds = new Set(visibleUpgrades.map((upgrade) => upgrade.id));
+
+  if (!visibleUpgrades.length) {
     els.upgradeList.querySelectorAll("[data-upgrade-id]").forEach((button) => button.remove());
     let note = els.upgradeList.querySelector(".empty-note");
     if (!note) {
@@ -409,14 +428,13 @@ function renderUpgrades() {
       note.className = "empty-note";
       els.upgradeList.append(note);
     }
-    note.textContent = "More upgrades will surface as the stockpile grows.";
+    note.textContent = "No upgrades available yet.";
     return;
   }
 
   els.upgradeList.querySelector(".empty-note")?.remove();
 
-  for (const upgrade of available) {
-    seen.add(upgrade.id);
+  for (const upgrade of visibleUpgrades) {
     let button = els.upgradeList.querySelector(`[data-upgrade-id="${upgrade.id}"]`);
     if (!button) {
       button = document.createElement("button");
@@ -441,19 +459,27 @@ function renderUpgrades() {
   }
 
   for (const button of els.upgradeList.querySelectorAll("[data-upgrade-id]")) {
-    if (!seen.has(button.dataset.upgradeId)) {
+    if (!visibleIds.has(button.dataset.upgradeId)) {
       button.remove();
     }
   }
 }
 
-function renderLog() {
-  els.eventLog.innerHTML = "";
-  for (const entry of state.log.slice(-6).reverse()) {
-    const item = document.createElement("p");
-    item.textContent = entry;
-    els.eventLog.append(item);
-  }
+function renderStatistics() {
+  const stats = [
+    ["Current Shards", formatNumber(Math.floor(state.shards))],
+    ["Lifetime Shards", formatNumber(Math.floor(state.lifetimeShards))],
+    ["Lifetime Clicks", formatNumber(state.totalClicks)],
+    ["Click Power", formatNumber(getClickPower())],
+    ["Shards / Second", formatNumber(getPassiveRate())],
+    ["Generators Owned", formatNumber(getTotalGeneratorsOwned())],
+    ["Upgrades Purchased", formatNumber(state.purchasedUpgrades.length)],
+    ["Click CPS Bonus", formatPercent(state.clickCpsPercent * 100)],
+  ];
+
+  els.statisticsList.innerHTML = stats
+    .map(([label, value]) => `<div class="stat-row"><span>${label}</span><strong>${value}</strong></div>`)
+    .join("");
 }
 
 function spawnFloat(amount, event) {
@@ -554,6 +580,14 @@ function trimNumber(value) {
   return value.toFixed(2).replace(/\.?0+$/, "");
 }
 
+function formatPercent(value) {
+  if (!Number.isFinite(value)) return "0%";
+  if (value >= 99.95) return "100%";
+  if (value >= 10) return `${value.toFixed(1).replace(/\.0$/, "")}%`;
+  if (value > 0) return `${value.toFixed(2).replace(/\.?0+$/, "")}%`;
+  return "0%";
+}
+
 function renderGameToText() {
   return JSON.stringify({
     coordinateSystem: "DOM layout; click target is #logo-button; origin top-left, x right, y down.",
@@ -563,16 +597,18 @@ function renderGameToText() {
     clickPower: getClickPower(),
     clickCpsPercent: state.clickCpsPercent,
     passiveRate: Number(getPassiveRate().toFixed(2)),
+    visibleGeneratorIds: getVisibleGenerators().map((generator) => generator.id),
     generators: GENERATORS.map((generator) => ({
       id: generator.id,
       name: generator.name,
       owned: getOwned(state, generator.id),
       cost: getGeneratorCost(generator),
       baseRate: generator.baseRate,
-      rateEach: generator.baseRate * state.generatorMultipliers[generator.id],
+      contribution: getGeneratorContribution(generator),
+      contributionPercent: getPassiveRate() > 0 ? (getGeneratorContribution(generator) / getPassiveRate()) * 100 : 0,
       affordable: state.shards >= getGeneratorCost(generator),
     })),
-    availableUpgrades: UPGRADES.filter((upgrade) => !state.purchasedUpgrades.includes(upgrade.id) && upgrade.unlock(state)).map((upgrade) => ({
+    availableUpgrades: getVisibleUpgrades().map((upgrade) => ({
       id: upgrade.id,
       name: upgrade.name,
       cost: upgrade.cost,
