@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Obsidian Clicker</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Obsidian Winds</p>
+        <h1>Obsidian Clicker</h1>
+      </div>
+      <div class="topbar-actions">
+        <button id="save-btn" type="button">Save</button>
+        <button id="reset-btn" type="button" class="danger">Reset</button>
+      </div>
+    </header>
+
+    <main class="game-grid">
+      <section class="click-zone" aria-labelledby="shard-total">
+        <div class="score-block">
+          <p class="eyebrow">Current Stockpile</p>
+          <h2 id="shard-total">0 Shards</h2>
+          <p id="rate-summary">+1 per click · 0 per second</p>
+        </div>
+
+        <div class="logo-stage">
+          <button id="logo-button" class="logo-button" type="button" aria-label="Gather Shards">
+            <img id="logo-img" src="assets/obsidian-winds-logo.png" alt="Obsidian Winds logo">
+            <span id="logo-fallback" class="logo-fallback" aria-hidden="true">OW</span>
+          </button>
+          <div id="float-layer" class="float-layer" aria-hidden="true"></div>
+        </div>
+
+        <div class="stat-strip">
+          <div>
+            <span id="lifetime-shards">0</span>
+            <small>Lifetime</small>
+          </div>
+          <div>
+            <span id="click-power">1</span>
+            <small>Click Power</small>
+          </div>
+          <div>
+            <span id="passive-rate">0</span>
+            <small>Per Second</small>
+          </div>
+        </div>
+      </section>
+
+      <aside class="side-panel" aria-label="Store and upgrades">
+        <section class="panel">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Store</p>
+              <h2>Generators</h2>
+            </div>
+          </div>
+          <div id="generator-list" class="stack-list"></div>
+        </section>
+
+        <section class="panel">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Improvements</p>
+              <h2>Upgrades</h2>
+            </div>
+          </div>
+          <div id="upgrade-list" class="stack-list"></div>
+        </section>
+
+        <section class="panel">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Ledger</p>
+              <h2>Recent Events</h2>
+            </div>
+          </div>
+          <div id="event-log" class="event-log"></div>
+        </section>
+      </aside>
+    </main>
+  </div>
+
+  <script src="main.js"></script>
+</body>
+</html>
