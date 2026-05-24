@@ -380,7 +380,7 @@ h2 {
 
 .stat-strip {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 10px;
   align-self: end;
 }
@@ -504,24 +504,78 @@ h2 {
   font-weight: 600;
 }
 
-.event-log {
-  display: grid;
-  gap: 8px;
-  max-height: 180px;
-  overflow: auto;
-  padding-right: 2px;
-  color: var(--muted-strong);
-  font-size: 0.84rem;
-  line-height: 1.35;
-  scrollbar-color: rgba(133, 1, 207, 0.55) rgba(255, 255, 255, 0.05);
+.statistics-panel {
+  padding: 0;
 }
 
-.event-log p {
-  margin: 0;
-  padding: 8px 9px;
+.statistics-panel summary {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.statistics-panel summary::-webkit-details-marker {
+  display: none;
+}
+
+.statistics-panel summary::after {
+  content: "+";
+  color: var(--muted-strong);
+  font-size: 1.25rem;
+  font-weight: 800;
+}
+
+.statistics-panel[open] summary::after {
+  content: "–";
+}
+
+.statistics-panel summary strong {
+  display: block;
+  font-family: var(--serif-display);
+  font-size: 1.12rem;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.statistics-list {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 8px;
+  padding: 0 16px 16px;
+}
+
+.stat-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 10px 11px;
   border: 1px solid rgba(255, 255, 255, 0.065);
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.035);
+}
+
+.stat-row span {
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.stat-row strong {
+  color: #ffffff;
+  font-size: 0.95rem;
+  font-weight: 900;
+  text-align: right;
 }
 
 @media (max-width: 900px) {
