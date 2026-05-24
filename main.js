@@ -4,6 +4,7 @@ const LOGO_SRC = "assets/obsidian-winds-logo.png";
 const COST_GROWTH = 1.15;
 const PRESS_FEEDBACK_MS = 95;
 const RIFT_BASE_SHARDS = 1000000;
+const MIN_OFFLINE_SECONDS = 5;
 
 const GENERATORS = [
   { id: "whisperer", name: "Whisperer", description: "Coaxes loose Shards from the edge of the wind.", baseCost: 15, baseRate: 0.1 },
@@ -114,6 +115,8 @@ function createFreshState() {
     purchasedRiftwork: [],
     riftEntries: 0,
     bestPassiveRate: 0,
+    lastOfflineShards: 0,
+    lastOfflineSeconds: 0,
     log: ["The first Shards wait in the wind."],
     lastSavedAt: null,
   };
@@ -121,6 +124,7 @@ function createFreshState() {
 
 function init() {
   loadGame();
+  applyOfflineProgress();
   els.logoImg.src = LOGO_SRC;
   els.logoImg.addEventListener("error", () => {
     els.logoButton.classList.add("logo-missing");
@@ -137,9 +141,49 @@ function init() {
     addLog("Progress saved.");
   });
   els.resetBtn.addEventListener("click", resetGame);
+  document.addEventListener("visibilitychange", handleVisibilityChange);
+  window.addEventListener("pagehide", saveGame);
+  window.addEventListener("beforeunload", saveGame);
 
   render();
   requestAnimationFrame(tick);
+}
+
+function handleVisibilityChange() {
+  if (document.hidden) {
+    saveGame();
+    return;
+  }
+
+  applyOfflineProgress();
+  render();
+}
+
+function applyOfflineProgress() {
+  const lastSavedMs = Date.parse(state.lastSavedAt || "");
+  if (!Number.isFinite(lastSavedMs)) {
+    saveGame();
+    return;
+  }
+
+  const elapsedSeconds = Math.floor(Math.max(0, (Date.now() - lastSavedMs) / 1000));
+  if (elapsedSeconds < MIN_OFFLINE_SECONDS) return;
+
+  const rate = getPassiveRate();
+  state.lastOfflineSeconds = elapsedSeconds;
+
+  if (rate <= 0) {
+    state.lastOfflineShards = 0;
+    saveGame();
+    return;
+  }
+
+  const offlineGain = rate * elapsedSeconds;
+  state.lastOfflineShards = offlineGain;
+  state.bestPassiveRate = Math.max(state.bestPassiveRate || 0, rate);
+  gainShards(offlineGain);
+  addLog(`The storm gathered ${formatNumber(offlineGain)} Shards over ${formatDuration(elapsedSeconds)}.`);
+  saveGame();
 }
 
 function handleLogoPress(event) {
@@ -312,6 +356,8 @@ function enterRift() {
     purchasedRiftwork: [...state.purchasedRiftwork],
     riftEntries: state.riftEntries + 1,
     bestPassiveRate: state.bestPassiveRate || 0,
+    lastOfflineShards: state.lastOfflineShards || 0,
+    lastOfflineSeconds: state.lastOfflineSeconds || 0,
     lastSavedAt: state.lastSavedAt,
   };
 
@@ -535,6 +581,8 @@ function renderStatistics() {
     ["Click Power", formatNumber(getClickPower())],
     ["Shards / Second", formatNumber(getPassiveRate())],
     ["Best Shards / Second", formatNumber(state.bestPassiveRate || 0)],
+    ["Last Offline Gain", formatNumber(state.lastOfflineShards || 0)],
+    ["Last Time Away", formatDuration(state.lastOfflineSeconds || 0)],
     ["Generators Owned", formatNumber(getTotalGeneratorsOwned())],
     ["Upgrades Purchased", formatNumber(state.purchasedUpgrades.length)],
     ["Echoes Held", formatNumber(state.echoes)],
@@ -596,6 +644,8 @@ function loadGame() {
     state.resonance = Number.isFinite(saved.resonance) ? saved.resonance : state.totalEchoesEarned;
     state.riftEntries = Number.isFinite(saved.riftEntries) ? saved.riftEntries : fresh.riftEntries;
     state.bestPassiveRate = Number.isFinite(saved.bestPassiveRate) ? saved.bestPassiveRate : fresh.bestPassiveRate;
+    state.lastOfflineShards = Number.isFinite(saved.lastOfflineShards) ? saved.lastOfflineShards : fresh.lastOfflineShards;
+    state.lastOfflineSeconds = Number.isFinite(saved.lastOfflineSeconds) ? saved.lastOfflineSeconds : fresh.lastOfflineSeconds;
     state.log = Array.isArray(saved.log) && saved.log.length ? saved.log.slice(-20) : fresh.log;
   } catch (error) {
     addLog("Save data could not be loaded.");
@@ -649,6 +699,19 @@ function formatPercent(value) {
   return "0%";
 }
 
+function formatDuration(totalSeconds) {
+  const seconds = Math.max(0, Math.floor(totalSeconds));
+  if (seconds < 60) return `${seconds}s`;
+
+  const days = Math.floor(seconds / 86400);
+  const hours = Math.floor((seconds % 86400) / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+
+  if (days > 0) return `${days}d ${hours}h`;
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  return `${minutes}m`;
+}
+
 function renderGameToText() {
   return JSON.stringify({
     coordinateSystem: "DOM layout; click target is #logo-button; origin top-left, x right, y down.",
@@ -666,6 +729,8 @@ function renderGameToText() {
     generatorRiftworkMultiplier: getGeneratorRiftworkMultiplier(),
     productionMultiplier: getProductionMultiplier(),
     riftEntries: state.riftEntries,
+    lastOfflineShards: state.lastOfflineShards,
+    lastOfflineSeconds: state.lastOfflineSeconds,
     clickPower: getClickPower(),
     clickCpsPercent: state.clickCpsPercent,
     passiveRate: Number(getPassiveRate().toFixed(2)),
