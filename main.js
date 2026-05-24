@@ -2,6 +2,7 @@ const SAVE_KEY = "obsidian-clicker-save-v1";
 const LOGO_SRC = "assets/obsidian-winds-logo.png";
 
 const COST_GROWTH = 1.15;
+const PRESS_FEEDBACK_MS = 95;
 
 const GENERATORS = [
   {
@@ -175,6 +176,7 @@ const state = createFreshState();
 let lastTick = performance.now();
 let saveTimer = 0;
 let renderQueued = false;
+let pressFeedbackTimer = null;
 
 const els = {
   shardTotal: document.querySelector("#shard-total"),
@@ -240,7 +242,7 @@ function init() {
     addLog("Logo missing. Place the final mark at assets/obsidian-winds-logo.png.");
   });
 
-  els.logoButton.addEventListener("click", handleLogoClick);
+  els.logoButton.addEventListener("pointerdown", handleLogoPress, { passive: false });
   els.saveBtn.addEventListener("click", () => {
     saveGame();
     addLog("Progress saved.");
@@ -251,15 +253,28 @@ function init() {
   requestAnimationFrame(tick);
 }
 
-function handleLogoClick(event) {
+function handleLogoPress(event) {
+  event.preventDefault();
+
+  if (event.pointerType === "mouse" && event.button !== 0) return;
+
   state.totalClicks += 1;
   const amount = getClickPower();
   gainShards(amount);
   spawnFloat(amount, event);
-  els.logoButton.classList.add("is-pressed");
-  window.setTimeout(() => els.logoButton.classList.remove("is-pressed"), 120);
+  pulseLogo();
   addLog(`Gathered ${formatNumber(amount)} Shard${amount === 1 ? "" : "s"}.`);
   scheduleRender();
+}
+
+function pulseLogo() {
+  window.clearTimeout(pressFeedbackTimer);
+  els.logoButton.classList.remove("is-pressed");
+  void els.logoButton.offsetWidth;
+  els.logoButton.classList.add("is-pressed");
+  pressFeedbackTimer = window.setTimeout(() => {
+    els.logoButton.classList.remove("is-pressed");
+  }, PRESS_FEEDBACK_MS);
 }
 
 function tick(now) {
