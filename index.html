@@ -28,6 +28,79 @@
       white-space: nowrap;
     }
 
+    .rift-panel {
+      display: grid;
+      gap: 10px;
+      margin-bottom: 16px;
+      padding-bottom: 14px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .rift-copy {
+      margin: 0;
+      color: var(--muted-strong);
+      font-size: 0.84rem;
+      font-weight: 600;
+      line-height: 1.45;
+    }
+
+    .rift-preview {
+      display: grid;
+      gap: 7px;
+    }
+
+    .rift-preview-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 9px 10px;
+      border: 1px solid rgba(255, 255, 255, 0.065);
+      border-radius: 10px;
+      background: rgba(114, 1, 177, 0.08);
+    }
+
+    .rift-preview-row span {
+      color: var(--muted);
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .rift-preview-row strong {
+      color: #ffffff;
+      font-size: 0.95rem;
+      font-weight: 900;
+      text-align: right;
+    }
+
+    .rift-button {
+      width: 100%;
+      padding: 12px 14px;
+      border: 1px solid rgba(133, 1, 207, 0.55);
+      border-radius: 12px;
+      background: linear-gradient(135deg, rgba(114, 1, 177, 0.42), rgba(133, 1, 207, 0.18));
+      color: #ffffff;
+      cursor: pointer;
+      font-weight: 900;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      touch-action: manipulation;
+    }
+
+    .rift-button:hover:not(:disabled) {
+      border-color: rgba(255, 255, 255, 0.3);
+      box-shadow: 0 16px 38px rgba(114, 1, 177, 0.22);
+      transform: translateY(-1px);
+    }
+
+    .rift-button:disabled {
+      cursor: not-allowed;
+      opacity: 0.42;
+      filter: saturate(0.75);
+    }
+
     @media (max-width: 900px) {
       #shard-total {
         font-size: clamp(1.55rem, 10vw, 4.2rem);
@@ -41,6 +114,16 @@
         font-size: clamp(1.25rem, 10.2vw, 3.05rem);
         letter-spacing: -0.045em;
         line-height: 1.12;
+      }
+
+      .rift-preview-row {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 4px;
+      }
+
+      .rift-preview-row strong {
+        text-align: left;
       }
     }
   </style>
@@ -59,6 +142,19 @@
             <button id="save-btn" type="button">Save</button>
             <button id="reset-btn" type="button" class="danger">Reset</button>
           </div>
+
+          <section class="rift-panel" aria-labelledby="rift-heading">
+            <div class="section-heading compact-heading">
+              <div>
+                <p class="eyebrow">The Rift</p>
+                <h2 id="rift-heading">Enter the Rift</h2>
+              </div>
+            </div>
+            <p class="rift-copy">Dissolve this storm into Echo. Your current Shards, generators, and temporary upgrades will vanish; your Echoes and Resonance will remain.</p>
+            <div id="rift-preview" class="rift-preview"></div>
+            <button id="enter-rift-btn" class="rift-button" type="button">Enter the Rift</button>
+          </section>
+
           <section class="menu-statistics" aria-labelledby="menu-statistics-heading">
             <div class="section-heading compact-heading">
               <div>
