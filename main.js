@@ -391,7 +391,7 @@ function renderGenerators() {
   }
 
   for (const button of els.generatorList.querySelectorAll("[data-generator-id]")) {
-    if (!seen.has(button.datasetGeneratorId)) {
+    if (!seen.has(button.dataset.generatorId)) {
       button.remove();
     }
   }
