@@ -178,6 +178,7 @@ let lastTick = performance.now();
 let saveTimer = 0;
 let renderQueued = false;
 let pressFeedbackTimer = null;
+let lastRiftPointerAt = 0;
 
 const els = {
   shardTotal: document.querySelector("#shard-total"),
@@ -251,7 +252,8 @@ function init() {
   });
 
   els.logoButton.addEventListener("pointerdown", handleLogoPress, { passive: false });
-  els.enterRiftBtn.addEventListener("click", enterRift);
+  els.enterRiftBtn.addEventListener("pointerdown", handleRiftPress, { passive: false });
+  els.enterRiftBtn.addEventListener("click", handleRiftClick);
   els.saveBtn.addEventListener("click", () => {
     saveGame();
     addLog("Progress saved.");
@@ -274,6 +276,26 @@ function handleLogoPress(event) {
   pulseLogo();
   addLog(`Gathered ${formatNumber(amount)} Shard${amount === 1 ? "" : "s"}.`);
   scheduleRender();
+}
+
+function handleRiftPress(event) {
+  event.preventDefault();
+  event.stopPropagation();
+
+  if (els.enterRiftBtn.disabled) return;
+  if (event.pointerType === "mouse" && event.button !== 0) return;
+
+  lastRiftPointerAt = performance.now();
+  enterRift();
+}
+
+function handleRiftClick(event) {
+  if (performance.now() - lastRiftPointerAt < 500) {
+    event.preventDefault();
+    return;
+  }
+
+  enterRift();
 }
 
 function pulseLogo() {
