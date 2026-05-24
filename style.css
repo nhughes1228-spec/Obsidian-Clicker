@@ -478,16 +478,6 @@ h2 {
   line-height: 1.36;
 }
 
-.cookie-role {
-  display: inline-block;
-  margin-top: 8px;
-  color: rgba(255, 255, 255, 0.66);
-  font-size: 0.64rem;
-  font-weight: 600;
-  letter-spacing: 0.17em;
-  text-transform: uppercase;
-}
-
 .item-meta {
   display: grid;
   align-content: center;
