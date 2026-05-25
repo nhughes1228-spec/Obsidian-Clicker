@@ -57,14 +57,29 @@ function annotateGeneratorDeltas() {
       : generator.baseRate * multiplier;
 
     const currentTotal = generator.owned > 0 ? generator.contribution : generator.baseRate * multiplier;
-    rateSpan.textContent = `+${formatGeneratorDelta(currentTotal)}/s (+${formatGeneratorDelta(nextGain)})`;
-    rateSpan.title = `Buying one more ${generator.name} adds ${formatGeneratorDelta(nextGain)} Shards per second.`;
+    const nextGainLabel = formatGeneratorDelta(nextGain);
+    rateSpan.textContent = `+${formatGeneratorDelta(currentTotal)}/s (+${nextGainLabel})`;
+    rateSpan.title = `Buying one more ${generator.name} adds ${nextGainLabel} Shards per second.`;
   }
 }
 
-function keepGeneratorDeltasVisible() {
+function installGeneratorDeltaRenderHook() {
+  if (typeof window.renderGenerators !== "function") {
+    window.requestAnimationFrame(installGeneratorDeltaRenderHook);
+    return;
+  }
+
+  if (window.renderGenerators.__withGeneratorDeltas) return;
+
+  const originalRenderGenerators = window.renderGenerators;
+  window.renderGenerators = function renderGeneratorsWithDeltas(...args) {
+    const result = originalRenderGenerators.apply(this, args);
+    annotateGeneratorDeltas();
+    return result;
+  };
+  window.renderGenerators.__withGeneratorDeltas = true;
+
   annotateGeneratorDeltas();
-  window.requestAnimationFrame(keepGeneratorDeltasVisible);
 }
 
-window.requestAnimationFrame(keepGeneratorDeltasVisible);
+installGeneratorDeltaRenderHook();
