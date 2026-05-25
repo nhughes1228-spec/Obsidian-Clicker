@@ -62,5 +62,9 @@ function annotateGeneratorDeltas() {
   }
 }
 
-window.addEventListener("load", annotateGeneratorDeltas);
-window.setInterval(annotateGeneratorDeltas, 250);
+function keepGeneratorDeltasVisible() {
+  annotateGeneratorDeltas();
+  window.requestAnimationFrame(keepGeneratorDeltasVisible);
+}
+
+window.requestAnimationFrame(keepGeneratorDeltasVisible);
