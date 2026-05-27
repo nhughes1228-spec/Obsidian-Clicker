@@ -25,7 +25,7 @@
       apply: (state) => { state.globalMultiplier *= 1.15; },
     },
     {
-      id: "Indoor Circuit",
+      id: "indoorCircuit",
       name: "Indoor Circuit",
       description: "The system finds a cleaner competitive rhythm. All Shard production +20%.",
       cost: 500000,
@@ -121,8 +121,8 @@
     { id: "echoes10", label: "10 lifetime Echoes", met: () => state.totalEchoesEarned >= 10 },
     { id: "echoes100", label: "100 lifetime Echoes", met: () => state.totalEchoesEarned >= 100 },
     { id: "riftwork5", label: "Etch 5 Riftwork rites", met: () => state.purchasedRiftwork.length >= 5 },
-    { id: "passive1k", label: "1K Shards per second", met: () => getPassiveRate() >= 1000 },
-    { id: "passive1m", label: "1M Shards per second", met: () => getPassiveRate() >= 1000000 },
+    { id: "passive1k", label: "1K best Shards per second", met: () => (state.bestPassiveRate || 0) >= 1000 },
+    { id: "passive1m", label: "1M best Shards per second", met: () => (state.bestPassiveRate || 0) >= 1000000 },
   ];
 
   function ensureExpansionState() {
