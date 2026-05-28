@@ -137,8 +137,124 @@
     if (!RIFTWORK.some((item) => item.id === upgrade.id)) RIFTWORK.push(upgrade);
   }
 
+  function installCompactUpgradeStyles() {
+    if (document.querySelector("#compact-upgrade-styles")) return;
+
+    const style = document.createElement("style");
+    style.id = "compact-upgrade-styles";
+    style.textContent = `
+      #upgrade-list.upgrade-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(138px, 1fr));
+        gap: 7px;
+      }
+
+      .upgrade-chip {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 8px;
+        min-height: 50px;
+        width: 100%;
+        padding: 8px 9px;
+        border: 1px solid rgba(255, 255, 255, 0.085);
+        border-radius: 10px;
+        background:
+          linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.025)),
+          rgba(10, 10, 12, 0.94);
+        color: var(--ink);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 10px 26px rgba(0, 0, 0, 0.18);
+        cursor: pointer;
+        text-align: left;
+        touch-action: manipulation;
+        transition: transform 120ms ease, border-color 120ms ease, background 120ms ease, opacity 120ms ease;
+        user-select: none;
+        -webkit-tap-highlight-color: transparent;
+      }
+
+      .upgrade-chip:hover:not(:disabled) {
+        transform: translateY(-1px);
+        border-color: rgba(133, 1, 207, 0.58);
+        background:
+          linear-gradient(180deg, rgba(114, 1, 177, 0.22), rgba(255, 255, 255, 0.035)),
+          rgba(12, 12, 14, 0.98);
+      }
+
+      .upgrade-chip:active:not(:disabled) {
+        transform: translateY(0) scale(0.99);
+      }
+
+      .upgrade-chip:disabled {
+        cursor: not-allowed;
+        opacity: 0.36;
+        filter: saturate(0.75);
+      }
+
+      .upgrade-chip-title {
+        display: block;
+        overflow: hidden;
+        color: #ffffff;
+        font-size: 0.78rem;
+        font-weight: 900;
+        letter-spacing: -0.01em;
+        line-height: 1.08;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .upgrade-chip-effect {
+        display: block;
+        overflow: hidden;
+        margin-top: 3px;
+        color: var(--muted);
+        font-size: 0.61rem;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        line-height: 1.05;
+        text-overflow: ellipsis;
+        text-transform: uppercase;
+        white-space: nowrap;
+      }
+
+      .upgrade-chip-cost {
+        color: #ffffff;
+        font-size: 0.82rem;
+        font-weight: 900;
+        letter-spacing: -0.02em;
+        text-align: right;
+        text-shadow: 0 0 16px rgba(133, 1, 207, 0.35);
+        white-space: nowrap;
+      }
+
+      @media (max-width: 560px) {
+        #upgrade-list.upgrade-grid {
+          grid-template-columns: 1fr;
+          gap: 6px;
+        }
+
+        .upgrade-chip {
+          min-height: 46px;
+          padding: 8px 9px;
+        }
+      }
+    `;
+
+    document.head.append(style);
+  }
+
+  function getUpgradeEffectLabel(upgrade) {
+    const text = upgrade.description || "Upgrade";
+    if (text.includes("All Shard production")) return "All production";
+    if (text.includes("Manual clicks")) return "Click power";
+    if (text.includes("Clicks borrow")) return "Click + passive";
+    if (text.includes("double production") || text.includes("double again")) return "Generator x2";
+    if (text.includes("Generator production")) return "Generators";
+    return "Upgrade";
+  }
+
   function installExpandedUpgrades() {
     ensureExpansionState();
+    installCompactUpgradeStyles();
 
     for (const generator of GENERATORS) {
       for (const tier of EXTRA_BUILDING_TIERS) {
@@ -156,7 +272,7 @@
     GLOBAL_UPGRADES.forEach(addUniqueUpgrade);
     EXTRA_CLICK_UPGRADES.forEach(addUniqueUpgrade);
     EXTRA_RIFTWORK.forEach(addUniqueRiftwork);
-    UPGRADES.sort((a, b) => a.cost - b.cost);
+    UPGRADES.sort((a, b) => a.cost - b.cost || a.name.localeCompare(b.name));
   }
 
   function getAcclaimCount() {
@@ -241,6 +357,57 @@
 
     for (const button of els.generatorList.querySelectorAll("[data-generator-id]")) {
       if (!visibleIds.has(button.dataset.generatorId)) button.remove();
+    }
+  };
+
+  renderUpgrades = function renderCompactSortedUpgrades() {
+    installCompactUpgradeStyles();
+    const visibleUpgrades = getVisibleUpgrades()
+      .slice()
+      .sort((a, b) => a.cost - b.cost || a.name.localeCompare(b.name));
+    const visibleIds = new Set(visibleUpgrades.map((upgrade) => upgrade.id));
+
+    els.upgradeList.classList.add("upgrade-grid");
+
+    if (!visibleUpgrades.length) {
+      els.upgradeList.querySelectorAll("[data-upgrade-id]").forEach((button) => button.remove());
+      let note = els.upgradeList.querySelector(".empty-note");
+      if (!note) {
+        note = document.createElement("p");
+        note.className = "empty-note";
+        els.upgradeList.append(note);
+      }
+      note.textContent = "No upgrades available yet.";
+      return;
+    }
+
+    els.upgradeList.querySelector(".empty-note")?.remove();
+
+    for (const upgrade of visibleUpgrades) {
+      let button = els.upgradeList.querySelector(`[data-upgrade-id="${upgrade.id}"]`);
+      if (!button) {
+        button = document.createElement("button");
+        button.type = "button";
+        button.dataset.upgradeId = upgrade.id;
+        button.addEventListener("click", () => buyUpgrade(upgrade.id));
+        els.upgradeList.append(button);
+      }
+
+      button.className = "upgrade-chip";
+      button.disabled = state.shards < upgrade.cost;
+      button.title = `${upgrade.name}\n${upgrade.description}\nCost: ${formatNumber(upgrade.cost)} Shards`;
+      button.setAttribute("aria-label", `${upgrade.name}. ${upgrade.description}. Costs ${formatNumber(upgrade.cost)} Shards.`);
+      button.innerHTML = `
+        <span>
+          <span class="upgrade-chip-title">${upgrade.name}</span>
+          <span class="upgrade-chip-effect">${getUpgradeEffectLabel(upgrade)}</span>
+        </span>
+        <span class="upgrade-chip-cost">${formatNumber(upgrade.cost)}</span>
+      `;
+    }
+
+    for (const button of els.upgradeList.querySelectorAll("[data-upgrade-id]")) {
+      if (!visibleIds.has(button.dataset.upgradeId)) button.remove();
     }
   };
 
