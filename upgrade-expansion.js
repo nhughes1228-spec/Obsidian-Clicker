@@ -1,4 +1,6 @@
 (() => {
+  const expandedUpgradeIds = new Set();
+
   const EXTRA_BUILDING_TIERS = [
     { milestone: 10, costMultiplier: 100, namePrefix: "Refined", description: "settle into a stronger groove and double production.", multiplier: 2 },
     { milestone: 150, costMultiplier: 500000, namePrefix: "Ascendant", description: "pull sound from the far side of the storm and double production.", multiplier: 2 },
@@ -137,6 +139,14 @@
     if (!RIFTWORK.some((item) => item.id === upgrade.id)) RIFTWORK.push(upgrade);
   }
 
+  function simplifyPanelHeaders() {
+    const panels = document.querySelectorAll(".side-panel .panel");
+    const generatorHeading = panels[0]?.querySelector(".section-heading div");
+    const upgradeHeading = panels[1]?.querySelector(".section-heading div");
+    if (generatorHeading) generatorHeading.innerHTML = "<h2>Generators</h2>";
+    if (upgradeHeading) upgradeHeading.innerHTML = "<h2>Upgrades</h2>";
+  }
+
   function installCompactUpgradeStyles() {
     if (document.querySelector("#compact-upgrade-styles")) return;
 
@@ -145,49 +155,55 @@
     style.textContent = `
       #upgrade-list.upgrade-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(138px, 1fr));
+        grid-template-columns: 1fr;
         gap: 7px;
       }
 
       .upgrade-chip {
         display: grid;
         grid-template-columns: minmax(0, 1fr) auto;
-        align-items: center;
         gap: 8px;
-        min-height: 50px;
+        align-items: stretch;
         width: 100%;
-        padding: 8px 9px;
         border: 1px solid rgba(255, 255, 255, 0.085);
         border-radius: 10px;
         background:
           linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.025)),
           rgba(10, 10, 12, 0.94);
-        color: var(--ink);
         box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 10px 26px rgba(0, 0, 0, 0.18);
+        overflow: hidden;
+      }
+
+      .upgrade-chip.is-locked {
+        opacity: 0.42;
+        filter: saturate(0.78);
+      }
+
+      .upgrade-details {
+        min-width: 0;
+      }
+
+      .upgrade-details summary {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto auto;
+        align-items: center;
+        gap: 8px;
+        min-height: 48px;
+        padding: 8px 9px;
+        color: var(--ink);
         cursor: pointer;
-        text-align: left;
+        list-style: none;
         touch-action: manipulation;
-        transition: transform 120ms ease, border-color 120ms ease, background 120ms ease, opacity 120ms ease;
         user-select: none;
         -webkit-tap-highlight-color: transparent;
       }
 
-      .upgrade-chip:hover:not(:disabled) {
-        transform: translateY(-1px);
-        border-color: rgba(133, 1, 207, 0.58);
-        background:
-          linear-gradient(180deg, rgba(114, 1, 177, 0.22), rgba(255, 255, 255, 0.035)),
-          rgba(12, 12, 14, 0.98);
+      .upgrade-details summary::-webkit-details-marker {
+        display: none;
       }
 
-      .upgrade-chip:active:not(:disabled) {
-        transform: translateY(0) scale(0.99);
-      }
-
-      .upgrade-chip:disabled {
-        cursor: not-allowed;
-        opacity: 0.36;
-        filter: saturate(0.75);
+      .upgrade-chip:hover .upgrade-details summary {
+        background: rgba(114, 1, 177, 0.08);
       }
 
       .upgrade-chip-title {
@@ -226,15 +242,71 @@
         white-space: nowrap;
       }
 
+      .upgrade-expand-label {
+        color: var(--muted);
+        font-size: 0.6rem;
+        font-weight: 900;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        white-space: nowrap;
+      }
+
+      .upgrade-details[open] .upgrade-expand-label {
+        color: #ffffff;
+      }
+
+      .upgrade-details-copy {
+        margin: 0;
+        padding: 0 9px 9px;
+        color: var(--muted-strong);
+        font-size: 0.72rem;
+        font-weight: 600;
+        line-height: 1.35;
+      }
+
+      .upgrade-buy-button {
+        min-width: 58px;
+        padding: 0 10px;
+        border: 0;
+        border-left: 1px solid rgba(255, 255, 255, 0.075);
+        background: rgba(114, 1, 177, 0.22);
+        color: #ffffff;
+        cursor: pointer;
+        font-size: 0.68rem;
+        font-weight: 900;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        touch-action: manipulation;
+        user-select: none;
+        -webkit-tap-highlight-color: transparent;
+      }
+
+      .upgrade-buy-button:hover:not(:disabled) {
+        background: rgba(133, 1, 207, 0.36);
+      }
+
+      .upgrade-buy-button:active:not(:disabled) {
+        transform: scale(0.98);
+      }
+
+      .upgrade-buy-button:disabled {
+        cursor: not-allowed;
+        opacity: 0.45;
+      }
+
       @media (max-width: 560px) {
-        #upgrade-list.upgrade-grid {
-          grid-template-columns: 1fr;
-          gap: 6px;
+        .upgrade-details summary {
+          min-height: 46px;
+          grid-template-columns: minmax(0, 1fr) auto;
         }
 
-        .upgrade-chip {
-          min-height: 46px;
-          padding: 8px 9px;
+        .upgrade-expand-label {
+          display: none;
+        }
+
+        .upgrade-buy-button {
+          min-width: 54px;
+          padding: 0 8px;
         }
       }
     `;
@@ -254,6 +326,7 @@
 
   function installExpandedUpgrades() {
     ensureExpansionState();
+    simplifyPanelHeaders();
     installCompactUpgradeStyles();
 
     for (const generator of GENERATORS) {
@@ -361,6 +434,7 @@
   };
 
   renderUpgrades = function renderCompactSortedUpgrades() {
+    simplifyPanelHeaders();
     installCompactUpgradeStyles();
     const visibleUpgrades = getVisibleUpgrades()
       .slice()
@@ -370,7 +444,7 @@
     els.upgradeList.classList.add("upgrade-grid");
 
     if (!visibleUpgrades.length) {
-      els.upgradeList.querySelectorAll("[data-upgrade-id]").forEach((button) => button.remove());
+      els.upgradeList.querySelectorAll("[data-upgrade-id]").forEach((node) => node.remove());
       let note = els.upgradeList.querySelector(".empty-note");
       if (!note) {
         note = document.createElement("p");
@@ -384,30 +458,45 @@
     els.upgradeList.querySelector(".empty-note")?.remove();
 
     for (const upgrade of visibleUpgrades) {
-      let button = els.upgradeList.querySelector(`[data-upgrade-id="${upgrade.id}"]`);
-      if (!button) {
-        button = document.createElement("button");
-        button.type = "button";
-        button.dataset.upgradeId = upgrade.id;
-        button.addEventListener("click", () => buyUpgrade(upgrade.id));
-        els.upgradeList.append(button);
+      let row = els.upgradeList.querySelector(`[data-upgrade-id="${upgrade.id}"]`);
+      if (!row) {
+        row = document.createElement("div");
+        row.dataset.upgradeId = upgrade.id;
+        els.upgradeList.append(row);
       }
 
-      button.className = "upgrade-chip";
-      button.disabled = state.shards < upgrade.cost;
-      button.title = `${upgrade.name}\n${upgrade.description}\nCost: ${formatNumber(upgrade.cost)} Shards`;
-      button.setAttribute("aria-label", `${upgrade.name}. ${upgrade.description}. Costs ${formatNumber(upgrade.cost)} Shards.`);
-      button.innerHTML = `
-        <span>
-          <span class="upgrade-chip-title">${upgrade.name}</span>
-          <span class="upgrade-chip-effect">${getUpgradeEffectLabel(upgrade)}</span>
-        </span>
-        <span class="upgrade-chip-cost">${formatNumber(upgrade.cost)}</span>
+      const affordable = state.shards >= upgrade.cost;
+      const isOpen = expandedUpgradeIds.has(upgrade.id);
+      row.className = `upgrade-chip ${affordable ? "" : "is-locked"}`;
+      row.innerHTML = `
+        <details class="upgrade-details" ${isOpen ? "open" : ""}>
+          <summary aria-label="Show details for ${upgrade.name}">
+            <span>
+              <span class="upgrade-chip-title">${upgrade.name}</span>
+              <span class="upgrade-chip-effect">${getUpgradeEffectLabel(upgrade)}</span>
+            </span>
+            <span class="upgrade-chip-cost">${formatNumber(upgrade.cost)}</span>
+            <span class="upgrade-expand-label">Details</span>
+          </summary>
+          <p class="upgrade-details-copy">${upgrade.description}</p>
+        </details>
+        <button class="upgrade-buy-button" type="button" data-buy-upgrade-id="${upgrade.id}" ${affordable ? "" : "disabled"}>Buy</button>
       `;
+
+      const details = row.querySelector("details");
+      details.addEventListener("toggle", () => {
+        if (details.open) expandedUpgradeIds.add(upgrade.id);
+        else expandedUpgradeIds.delete(upgrade.id);
+      });
+
+      row.querySelector("[data-buy-upgrade-id]").addEventListener("click", (event) => {
+        event.stopPropagation();
+        buyUpgrade(upgrade.id);
+      });
     }
 
-    for (const button of els.upgradeList.querySelectorAll("[data-upgrade-id]")) {
-      if (!visibleIds.has(button.dataset.upgradeId)) button.remove();
+    for (const row of els.upgradeList.querySelectorAll("[data-upgrade-id]")) {
+      if (!visibleIds.has(row.dataset.upgradeId)) row.remove();
     }
   };
 
