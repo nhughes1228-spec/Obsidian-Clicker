@@ -1,6 +1,8 @@
 (() => {
   const openUpgradeIds = new Set();
   let handlerInstalled = false;
+  let lastPurchaseAt = 0;
+  let lastPurchaseId = "";
 
   function installUpgradeStabilityStyles() {
     if (document.querySelector("#upgrade-card-stability-styles")) return;
@@ -16,7 +18,7 @@
 
       #upgrade-list .upgrade-chip {
         display: grid !important;
-        grid-template-columns: minmax(0, 1fr) 66px !important;
+        grid-template-columns: minmax(0, 1fr) 72px !important;
         align-items: stretch !important;
         gap: 0 !important;
         width: 100%;
@@ -79,10 +81,10 @@
       #upgrade-list .upgrade-buy-button {
         display: grid !important;
         place-items: center !important;
-        width: 66px !important;
-        min-width: 66px !important;
+        width: 72px !important;
+        min-width: 72px !important;
         height: 100% !important;
-        min-height: 48px !important;
+        min-height: 52px !important;
         margin: 0 !important;
         padding: 0 8px !important;
         align-self: stretch !important;
@@ -98,8 +100,10 @@
         font-weight: 900;
         letter-spacing: 0.1em;
         text-transform: uppercase;
-        touch-action: manipulation;
+        touch-action: none;
         user-select: none;
+        -webkit-user-select: none;
+        -webkit-touch-callout: none;
         -webkit-tap-highlight-color: transparent;
       }
 
@@ -149,31 +153,46 @@
       .sort((a, b) => a.cost - b.cost || a.name.localeCompare(b.name));
   }
 
+  function tryPurchaseUpgrade(upgradeId) {
+    const now = performance.now();
+    if (upgradeId === lastPurchaseId && now - lastPurchaseAt < 180) return;
+
+    const upgrade = UPGRADES.find((item) => item.id === upgradeId);
+    if (!upgrade) return;
+    if (state.purchasedUpgrades.includes(upgrade.id)) return;
+
+    let unlocked = false;
+    try {
+      unlocked = upgrade.unlock(state);
+    } catch {
+      unlocked = false;
+    }
+
+    if (!unlocked || state.shards < upgrade.cost) return;
+
+    lastPurchaseAt = now;
+    lastPurchaseId = upgradeId;
+    buyUpgrade(upgrade.id);
+  }
+
   function installUpgradePurchaseHandler() {
     if (handlerInstalled) return;
     handlerInstalled = true;
 
+    els.upgradeList.addEventListener("pointerup", (event) => {
+      const buyButton = event.target.closest("[data-buy-upgrade-id]");
+      if (!buyButton) return;
+      event.preventDefault();
+      event.stopPropagation();
+      tryPurchaseUpgrade(buyButton.dataset.buyUpgradeId);
+    }, { passive: false });
+
     els.upgradeList.addEventListener("click", (event) => {
       const buyButton = event.target.closest("[data-buy-upgrade-id]");
       if (!buyButton) return;
-
       event.preventDefault();
       event.stopPropagation();
-
-      const upgradeId = buyButton.dataset.buyUpgradeId;
-      const upgrade = UPGRADES.find((item) => item.id === upgradeId);
-      if (!upgrade) return;
-      if (state.purchasedUpgrades.includes(upgrade.id)) return;
-
-      let unlocked = false;
-      try {
-        unlocked = upgrade.unlock(state);
-      } catch {
-        unlocked = false;
-      }
-
-      if (!unlocked || state.shards < upgrade.cost) return;
-      buyUpgrade(upgrade.id);
+      tryPurchaseUpgrade(buyButton.dataset.buyUpgradeId);
     });
   }
 
