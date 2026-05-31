@@ -1,6 +1,8 @@
 (() => {
   let selectedGeneratorBuyMode = "1";
   const openUpgradeIds = new Set();
+  let generatorHandlerInstalled = false;
+  let upgradeHandlerInstalled = false;
 
   function installStoreControlStyles() {
     if (document.querySelector("#store-control-styles")) return;
@@ -58,9 +60,8 @@
         cursor: pointer;
       }
 
-      .generator-card:disabled {
-        cursor: not-allowed;
-        opacity: 0.38;
+      .generator-card.is-locked {
+        opacity: 0.46;
         filter: saturate(0.76);
       }
 
@@ -84,9 +85,7 @@
         filter: saturate(0.78);
       }
 
-      .upgrade-details {
-        min-width: 0;
-      }
+      .upgrade-details { min-width: 0; }
 
       .upgrade-details summary {
         display: grid;
@@ -103,9 +102,7 @@
         -webkit-tap-highlight-color: transparent;
       }
 
-      .upgrade-details summary::-webkit-details-marker {
-        display: none;
-      }
+      .upgrade-details summary::-webkit-details-marker { display: none; }
 
       .upgrade-chip-title {
         display: block;
@@ -175,7 +172,7 @@
         touch-action: manipulation;
       }
 
-      .upgrade-buy-button:disabled {
+      .upgrade-buy-button.is-locked {
         cursor: not-allowed;
         opacity: 0.45;
       }
@@ -188,7 +185,6 @@
     const panels = document.querySelectorAll(".side-panel .panel");
     const generatorHeading = panels[0]?.querySelector(".section-heading div");
     const upgradeHeading = panels[1]?.querySelector(".section-heading div");
-
     if (generatorHeading) generatorHeading.innerHTML = "<h2>Generators</h2>";
     if (upgradeHeading) upgradeHeading.innerHTML = "<h2>Upgrades</h2>";
   }
@@ -199,29 +195,22 @@
 
   function getGeneratorBatchCost(generator, amount) {
     let total = 0;
-
     for (let i = 0; i < amount; i += 1) {
       total += getGeneratorUnitCost(generator, i);
       if (!Number.isFinite(total)) return Infinity;
     }
-
     return total;
   }
 
   function getAffordableGeneratorAmount(generator) {
-    if (state.shards < getGeneratorUnitCost(generator)) return 0;
-
     let amount = 0;
     let total = 0;
-
     while (amount < 100000) {
       const nextCost = getGeneratorUnitCost(generator, amount);
-      if (total + nextCost > state.shards) break;
-
+      if (!Number.isFinite(nextCost) || total + nextCost > state.shards) break;
       total += nextCost;
       amount += 1;
     }
-
     return amount;
   }
 
@@ -241,8 +230,7 @@
     if (!Number.isFinite(cost) || cost > state.shards) return;
 
     state.shards -= cost;
-    state.generatorCounts[generator.id] += amount;
-
+    state.generatorCounts[generator.id] = getOwned(state, generator.id) + amount;
     addLog(`Bought ${formatNumber(amount)} ${generator.name}${amount === 1 ? "" : "s"}.`);
     saveGame(false);
     render();
@@ -268,13 +256,10 @@
     controls.addEventListener("click", (event) => {
       const button = event.target.closest("[data-buy-mode]");
       if (!button) return;
-
       selectedGeneratorBuyMode = button.dataset.buyMode;
-
       controls.querySelectorAll("[data-buy-mode]").forEach((modeButton) => {
         modeButton.classList.toggle("is-selected", modeButton.dataset.buyMode === selectedGeneratorBuyMode);
       });
-
       render();
     });
 
@@ -282,10 +267,22 @@
     return controls;
   }
 
+  function installDelegatedGeneratorHandler() {
+    if (generatorHandlerInstalled) return;
+    generatorHandlerInstalled = true;
+    els.generatorList.addEventListener("click", (event) => {
+      const card = event.target.closest("[data-generator-id]");
+      if (!card) return;
+      event.preventDefault();
+      buySelectedGeneratorAmount(card.dataset.generatorId);
+    });
+  }
+
   function renderGeneratorsWithSelector() {
     installStoreControlStyles();
     simplifyHeaders();
     ensureGeneratorControls();
+    installDelegatedGeneratorHandler();
 
     const visibleGenerators = getVisibleGenerators();
     const visibleIds = new Set(visibleGenerators.map((generator) => generator.id));
@@ -302,17 +299,16 @@
       const buyCost = buyAmount > 0 ? getGeneratorBatchCost(generator, buyAmount) : Infinity;
       const canBuy = buyAmount > 0 && buyCost <= state.shards;
 
-      let button = els.generatorList.querySelector(`[data-generator-id="${generator.id}"]`);
-      if (!button) {
-        button = document.createElement("button");
-        button.type = "button";
-        button.className = "item-card generator-card";
-        button.dataset.generatorId = generator.id;
-        button.addEventListener("click", () => buySelectedGeneratorAmount(generator.id));
+      let card = els.generatorList.querySelector(`[data-generator-id="${generator.id}"]`);
+      if (!card) {
+        card = document.createElement("button");
+        card.type = "button";
+        card.dataset.generatorId = generator.id;
       }
 
-      button.disabled = !canBuy;
-      button.innerHTML = `
+      card.disabled = false;
+      card.className = `item-card generator-card ${canBuy ? "is-affordable" : "is-locked"}`;
+      card.innerHTML = `
         <div>
           <h3>${generator.name}</h3>
           <p>${generator.description}</p>
@@ -326,12 +322,11 @@
           <span>${formatPercent(contributionPercent)} total</span>
         </div>
       `;
-
-      els.generatorList.append(button);
+      els.generatorList.append(card);
     }
 
-    for (const button of els.generatorList.querySelectorAll("[data-generator-id]")) {
-      if (!visibleIds.has(button.dataset.generatorId)) button.remove();
+    for (const card of els.generatorList.querySelectorAll("[data-generator-id]")) {
+      if (!visibleIds.has(card.dataset.generatorId)) card.remove();
     }
   }
 
@@ -345,18 +340,31 @@
     return "Upgrade";
   }
 
+  function installDelegatedUpgradeHandler() {
+    if (upgradeHandlerInstalled) return;
+    upgradeHandlerInstalled = true;
+    els.upgradeList.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-buy-upgrade-id]");
+      if (!button) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const upgrade = UPGRADES.find((item) => item.id === button.dataset.buyUpgradeId);
+      if (!upgrade || state.purchasedUpgrades.includes(upgrade.id)) return;
+      if (!upgrade.unlock(state) || state.shards < upgrade.cost) return;
+      buyUpgrade(upgrade.id);
+    });
+  }
+
   function renderReliableUpgrades() {
     installStoreControlStyles();
     simplifyHeaders();
+    installDelegatedUpgradeHandler();
 
     const visibleUpgrades = UPGRADES
       .filter((upgrade) => !state.purchasedUpgrades.includes(upgrade.id))
       .filter((upgrade) => {
-        try {
-          return upgrade.unlock(state);
-        } catch {
-          return false;
-        }
+        try { return upgrade.unlock(state); }
+        catch { return false; }
       })
       .slice()
       .sort((a, b) => a.cost - b.cost || a.name.localeCompare(b.name));
@@ -366,14 +374,12 @@
 
     if (!visibleUpgrades.length) {
       els.upgradeList.querySelectorAll("[data-upgrade-id]").forEach((node) => node.remove());
-
       let note = els.upgradeList.querySelector(".empty-note");
       if (!note) {
         note = document.createElement("p");
         note.className = "empty-note";
         els.upgradeList.append(note);
       }
-
       note.textContent = "No upgrades available yet.";
       return;
     }
@@ -389,7 +395,6 @@
 
       const affordable = state.shards >= upgrade.cost;
       const isOpen = openUpgradeIds.has(upgrade.id);
-
       row.className = `upgrade-chip ${affordable ? "is-affordable" : "is-locked"}`;
       row.innerHTML = `
         <details class="upgrade-details" ${isOpen ? "open" : ""}>
@@ -403,19 +408,13 @@
           </summary>
           <p class="upgrade-details-copy">${upgrade.description}</p>
         </details>
-        <button class="upgrade-buy-button" type="button" ${affordable ? "" : "disabled"}>Buy</button>
+        <button class="upgrade-buy-button ${affordable ? "" : "is-locked"}" type="button" data-buy-upgrade-id="${upgrade.id}">Buy</button>
       `;
 
       const details = row.querySelector("details");
       details.addEventListener("toggle", () => {
         if (details.open) openUpgradeIds.add(upgrade.id);
         else openUpgradeIds.delete(upgrade.id);
-      });
-
-      row.querySelector(".upgrade-buy-button").addEventListener("click", (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        if (state.shards >= upgrade.cost) buyUpgrade(upgrade.id);
       });
 
       els.upgradeList.append(row);
@@ -428,7 +427,6 @@
 
   renderGenerators = renderGeneratorsWithSelector;
   renderUpgrades = renderReliableUpgrades;
-
   window.renderGenerators = renderGeneratorsWithSelector;
   window.renderUpgrades = renderReliableUpgrades;
 
