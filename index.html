@@ -210,12 +210,31 @@
         <h1>Obsidian Clicker</h1>
       </div>
       <details class="top-menu" id="top-menu">
-        <summary>Menu</summary>
+        <summary aria-keyshortcuts="M">Menu</summary>
         <div class="menu-panel">
           <div class="menu-actions">
-            <button id="save-btn" type="button">Save</button>
+            <button id="save-btn" type="button" aria-keyshortcuts="S">Save</button>
             <button id="reset-btn" type="button" class="danger">Reset</button>
+            <button id="export-save-btn" type="button">Export</button>
+            <button id="import-save-btn" type="button">Import</button>
+            <input id="import-save-input" type="file" accept="application/json,.json" hidden>
           </div>
+          <p id="save-status" class="save-status" aria-live="polite"></p>
+
+          <section class="settings-panel" aria-labelledby="settings-heading">
+            <div class="section-heading compact-heading">
+              <div>
+                <p class="eyebrow">Preferences</p>
+                <h2 id="settings-heading">Settings</h2>
+              </div>
+            </div>
+            <div class="setting-list">
+              <label><span>Reduced Motion</span><input type="checkbox" data-setting="reducedMotion"></label>
+              <label><span>Sound Effects</span><input type="checkbox" data-setting="sound"></label>
+              <label><span>Ambient Music</span><input type="checkbox" data-setting="music"></label>
+              <label><span>Haptics</span><input type="checkbox" data-setting="haptics"></label>
+            </div>
+          </section>
 
           <section class="rift-panel" aria-labelledby="rift-heading">
             <div class="section-heading compact-heading">
@@ -225,6 +244,16 @@
               </div>
             </div>
             <p class="rift-copy">Dissolve this storm into Echo. Your current Shards, generators, and temporary upgrades will vanish; your Echoes and Resonance will remain.</p>
+            <div id="rift-recommendation" class="rift-recommendation"></div>
+            <fieldset class="attunement-picker">
+              <legend>Next Run Attunement</legend>
+              <div id="attunement-options"></div>
+              <p id="attunement-description"></p>
+            </fieldset>
+            <fieldset class="aspect-loadout">
+              <legend>Next Run Aspects <span id="aspect-slot-count">0 / 2</span></legend>
+              <div id="aspect-slots"></div>
+            </fieldset>
             <div id="rift-preview" class="rift-preview"></div>
             <button id="enter-rift-btn" class="rift-button" type="button">Enter the Rift</button>
           </section>
@@ -232,12 +261,39 @@
           <section class="rift-panel" aria-labelledby="riftwork-heading">
             <div class="section-heading compact-heading">
               <div>
-                <p class="eyebrow">Echo Shop</p>
-                <h2 id="riftwork-heading">Riftwork</h2>
+                <p class="eyebrow">Rift Constellation</p>
+                <h2 id="riftwork-heading">Riftwork &amp; Aspects</h2>
               </div>
             </div>
-            <p class="rift-copy">Spend Echoes on permanent production rites that survive every journey through the Rift.</p>
+            <p class="rift-copy">Etch permanent Riftwork or unlock Aspects. Equip up to two Aspects for your next run.</p>
             <div id="riftwork-list" class="riftwork-list"></div>
+          </section>
+
+          <section class="rift-panel" aria-labelledby="run-history-heading">
+            <div class="section-heading compact-heading">
+              <div>
+                <p class="eyebrow">Chronicle</p>
+                <h2 id="run-history-heading">Run History</h2>
+              </div>
+            </div>
+            <div id="run-history-list" class="run-history-list"></div>
+          </section>
+
+          <section class="long-term-panel" aria-labelledby="long-term-heading">
+            <div class="section-heading compact-heading">
+              <div>
+                <p class="eyebrow">Long-Term Goals</p>
+                <h2 id="long-term-heading">The Enduring Storm</h2>
+              </div>
+            </div>
+            <div id="campaign-capstone" class="campaign-capstone"></div>
+            <nav id="goal-tabs" class="segmented-tabs goal-tabs" aria-label="Long-term goal view">
+              <button type="button" data-goal-tab="acclaim" class="is-selected">Acclaim</button>
+              <button type="button" data-goal-tab="work">Sanctum</button>
+              <button type="button" data-goal-tab="challenges">Challenges</button>
+              <button type="button" data-goal-tab="chronicle">Chronicle</button>
+            </nav>
+            <div id="goal-view" class="goal-view"></div>
           </section>
 
           <section class="menu-statistics" aria-labelledby="menu-statistics-heading">
@@ -247,6 +303,12 @@
                 <h2 id="menu-statistics-heading">Statistics</h2>
               </div>
             </div>
+            <nav id="record-tabs" class="segmented-tabs record-tabs" aria-label="Statistics view">
+              <button type="button" data-record-tab="run" class="is-selected">This Run</button>
+              <button type="button" data-record-tab="lifetime">Lifetime</button>
+              <button type="button" data-record-tab="bests">Bests</button>
+              <button type="button" data-record-tab="prestige">Rift</button>
+            </nav>
             <div id="statistics-list" class="statistics-list"></div>
           </section>
         </div>
@@ -259,12 +321,33 @@
           <p class="eyebrow">Current Stockpile</p>
           <h2 id="shard-total">0 Shards</h2>
           <p id="rate-summary">+1 per click · 0 per second</p>
+          <div class="momentum-readout" aria-label="Momentum">
+            <span><strong>Momentum</strong><b id="momentum-value">0%</b></span>
+            <span class="momentum-track"><i id="momentum-fill"></i></span>
+            <small id="momentum-bonus">Clicks x1</small>
+          </div>
         </div>
 
-        <div class="logo-stage">
-          <button id="logo-button" class="logo-button" type="button" aria-label="Gather Shards">
+        <section id="first-run-objective" class="first-run-objective" aria-labelledby="objective-title">
+          <span class="generator-sigil" data-icon="breath" aria-hidden="true"></span>
+          <div>
+            <small>Current Objective</small>
+            <strong id="objective-title">Wake the Sigil</strong>
+            <p id="objective-detail">Gather your first Shard from the Obsidian Winds mark.</p>
+            <i><b id="objective-progress"></b></i>
+          </div>
+        </section>
+
+        <div id="logo-stage" class="logo-stage" data-evolution="0">
+          <div id="generator-voices" class="generator-voices" aria-hidden="true"></div>
+          <span id="sigil-title" class="sigil-title">Dormant Sigil</span>
+          <button id="logo-button" class="logo-button" type="button" aria-label="Gather Shards" aria-keyshortcuts="Space">
             <img id="logo-img" src="assets/obsidian-winds-logo.png" alt="Obsidian Winds logo">
             <span id="logo-fallback" class="logo-fallback" aria-hidden="true">OW</span>
+          </button>
+          <button id="wind-rift-button" class="wind-rift-button" type="button" hidden>
+            <span id="wind-rift-name">Wind Rift</span>
+            <small id="wind-rift-timer">12s</small>
           </button>
           <div id="float-layer" class="float-layer" aria-hidden="true"></div>
         </div>
@@ -282,6 +365,22 @@
       </section>
 
       <aside class="side-panel" aria-label="Store and upgrades">
+        <section class="economy-dock" aria-label="Economy summary and purchase amount">
+          <div class="economy-dock-values">
+            <span><strong id="dock-shards">0</strong><small>Shards</small></span>
+            <span><strong id="dock-rate">0</strong><small>Per Second</small></span>
+          </div>
+          <div id="generator-purchase-controls" class="generator-purchase-controls" aria-label="Generator purchase amount">
+            <span>Buy Amount</span>
+            <div class="generator-buy-mode-row">
+              <button class="generator-buy-mode is-selected" type="button" data-buy-mode="1">1x</button>
+              <button class="generator-buy-mode" type="button" data-buy-mode="10">10x</button>
+              <button class="generator-buy-mode" type="button" data-buy-mode="50">50x</button>
+              <button class="generator-buy-mode" type="button" data-buy-mode="max">Max</button>
+            </div>
+          </div>
+        </section>
+
         <section class="panel">
           <div class="section-heading">
             <div>
@@ -299,17 +398,29 @@
               <h2>Upgrades</h2>
             </div>
           </div>
+          <nav id="upgrade-tabs" class="segmented-tabs upgrade-tabs" aria-label="Upgrade view">
+            <button type="button" data-upgrade-tab="available" class="is-selected">Available</button>
+            <button type="button" data-upgrade-tab="purchased">Purchased</button>
+            <button type="button" data-upgrade-tab="generator">Generator</button>
+            <button type="button" data-upgrade-tab="click">Click</button>
+            <button type="button" data-upgrade-tab="global">Global</button>
+            <button type="button" data-upgrade-tab="rift">Rift</button>
+          </nav>
           <div id="upgrade-list" class="stack-list"></div>
         </section>
       </aside>
     </main>
   </div>
 
-  <script src="heartbeat.js"></script>
-  <script src="main.js"></script>
-  <script src="upgrade-expansion.js"></script>
-  <script src="balance-patch.js"></script>
-  <script src="store-controls.js"></script>
-  <script src="generator-batch-price.js"></script>
+  <dialog id="offline-dialog" class="offline-dialog">
+    <p class="eyebrow">Welcome Back</p>
+    <h2>The Storm Continued</h2>
+    <p id="offline-summary"></p>
+    <button id="offline-continue-btn" type="button">Continue</button>
+  </dialog>
+
+  <p id="game-announcer" class="sr-only" aria-live="polite" aria-atomic="true"></p>
+
+  <script type="module" src="src/app.js"></script>
 </body>
 </html>

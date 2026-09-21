@@ -1,0 +1,9 @@
+{
+  "name": "obsidian-clicker",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test",
+    "simulate": "node tools/simulate-active.mjs && node tools/simulate-builds.mjs && node tools/simulate-project.mjs"
+  }
+}
