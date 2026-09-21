@@ -5,14 +5,17 @@ export function createAudioEngine(getState) {
   const getSettings = () => getState().settings;
 
   function ensureContext() {
-    if (!context) context = new AudioContext();
-    if (context.state === "suspended") context.resume();
+    const Audio = globalThis.AudioContext || globalThis.webkitAudioContext;
+    if (!Audio || !navigator.userActivation?.hasBeenActive) return null;
+    if (!context) context = new Audio();
+    if (context.state === "suspended") context.resume().catch(() => {});
     return context;
   }
 
   function tone(frequency, duration = 0.08, volume = 0.025) {
     if (!getSettings().sound) return;
     const audio = ensureContext();
+    if (!audio) return;
     const oscillator = audio.createOscillator();
     const gain = audio.createGain();
     oscillator.type = "sine";
@@ -22,6 +25,7 @@ export function createAudioEngine(getState) {
     oscillator.connect(gain).connect(audio.destination);
     oscillator.start();
     oscillator.stop(audio.currentTime + duration);
+    oscillator.onended = () => { oscillator.disconnect(); gain.disconnect(); };
   }
 
   function syncMusic() {
@@ -31,6 +35,7 @@ export function createAudioEngine(getState) {
     }
     if (musicNodes) return;
     const audio = ensureContext();
+    if (!audio) return;
     const master = audio.createGain();
     const filter = audio.createBiquadFilter();
     master.gain.value = 0.008;
@@ -52,7 +57,9 @@ export function createAudioEngine(getState) {
   }
 
   function stopMusic() {
-    musicNodes?.oscillators?.forEach(({ oscillator }) => oscillator.stop?.());
+    musicNodes?.oscillators?.forEach(({ oscillator, layer }) => { oscillator.stop(); oscillator.disconnect(); layer.disconnect(); });
+    musicNodes?.master.disconnect();
+    musicNodes?.filter.disconnect();
     musicNodes = null;
   }
 

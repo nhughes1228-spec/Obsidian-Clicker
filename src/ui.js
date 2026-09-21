@@ -1,4 +1,6 @@
 import { ACCLAIM_MILESTONES, GENERATORS, RIFTWORK, SAVE_VERSION, UPGRADES } from "./content.js";
+import { patchTemplate, syncChildren } from "./dom.js";
+import { EXTENDED_WORKS, EXPEDITION_TYPES, MASTERY_RANK_SECONDS, getExpeditionContracts, getMasteryRanks } from "./expansion.js";
 import {
   deriveModifiers,
   formatDuration,
@@ -19,10 +21,12 @@ import {
   getPotentialResonance,
   getProductionMultiplier,
   getResonanceMultiplier,
+  getResonancePercentPerLevel,
   getShardsForResonance,
   getTotalGeneratorsOwned,
   getVisibleGenerators,
   getVisibleUpgrades,
+  isUpgradeUnlocked,
 } from "./economy.js";
 import {
   getGeneratorPurchasePreview,
@@ -87,12 +91,14 @@ export function createUI(getState, actions) {
 
   const generatorNodes = new Map();
   const upgradeNodes = new Map();
+  const upgradeGroupNodes = new Map();
   const riftworkNodes = new Map();
   const openUpgradeIds = new Set();
   let selectedBuyMode = "1";
   let selectedUpgradeTab = "available";
   let selectedRecordTab = "run";
   let selectedGoalTab = "acclaim";
+  let lastChronicleKey = "";
   let lastStructureKey = "";
   let lastObjectiveId;
 
@@ -150,11 +156,31 @@ export function createUI(getState, actions) {
   });
 
   els.goalView.addEventListener("click", (event) => {
+    const work = event.target.closest("[data-build-work]");
+    if (work) actions.expansionCommand("buildWork", { id: work.dataset.buildWork });
+    const expedition = event.target.closest("[data-expedition]");
+    if (expedition) actions.expansionCommand("expeditionStart", { key: expedition.dataset.expedition });
+    if (event.target.closest("[data-abandon-expedition]")) actions.expansionCommand("expeditionAbandon");
+    if (event.target.closest("[data-refresh-expeditions]")) actions.expansionCommand("expeditionRefresh");
     const allocation = event.target.closest("[data-project-allocation]");
     if (allocation) actions.setProjectAllocation(allocation.dataset.projectAllocation);
     const challenge = event.target.closest("[data-challenge-id]");
     if (challenge) actions.startChallenge(challenge.dataset.challengeId);
     if (event.target.closest("[data-abandon-challenge]")) actions.abandonChallenge();
+  });
+  els.goalView.addEventListener("change", (event) => {
+    const specialization = event.target.closest("[data-specialization]");
+    if (specialization) actions.expansionCommand("specialization", { id: specialization.dataset.specialization, value: specialization.value });
+    const control = event.target.closest("[data-automation]");
+    if (!control) return;
+    actions.configureAutomation(control.dataset.automation, control.type === "checkbox" ? control.checked : control.type === "number" ? Number(control.value) : control.value);
+  });
+  document.querySelector("#objective-picker").addEventListener("change", (event) => actions.expansionCommand("pinObjective", { id: event.target.value || null }));
+  document.querySelector("#pinned-objective").addEventListener("click", (event) => {
+    if (event.target.closest("[data-recover-allocation]")) actions.setProjectAllocation(0.25);
+    if (event.target.closest("[data-recover-challenge]")) actions.abandonChallenge();
+    const tab = event.target.closest("[data-open-goal]");
+    if (tab) { document.querySelector("#top-menu").open = true; selectedGoalTab = tab.dataset.openGoal; selectTab(document.querySelector("#goal-tabs"), "goalTab", selectedGoalTab); actions.requestRender(true); }
   });
 
   els.upgradeList.addEventListener("toggle", (event) => {
@@ -200,13 +226,16 @@ export function createUI(getState, actions) {
 
     renderGenerators(state, modifiers, passiveRate, visibleGenerators, structureChanged);
     renderUpgrades(state, visibleUpgrades, structureChanged);
-    renderRift(state);
+    if (document.querySelector("#top-menu").open) renderRift(state);
     renderActivePlay(state);
     renderRiftwork(state, structureChanged);
-    renderStatistics(state, modifiers, passiveRate, clickPower);
-    renderRunHistory(state);
-    renderLongTerm(state);
+    if (document.querySelector("#top-menu").open) {
+      renderStatistics(state, modifiers, passiveRate, clickPower);
+      renderRunHistory(state);
+      renderLongTerm(state);
+    }
     renderIdentity(state, passiveRate);
+    renderPinnedObjective(state, passiveRate);
   }
 
   function renderIdentity(state, passiveRate) {
@@ -304,13 +333,12 @@ export function createUI(getState, actions) {
 
   function renderUpgrades(state, visibleUpgrades, structureChanged) {
     if (selectedUpgradeTab === "rift") {
-      renderRiftUpgradeCollection(state);
+      if (structureChanged) renderRiftUpgradeCollection(state);
       return;
     }
 
     const visibleIds = new Set(visibleUpgrades.map((upgrade) => upgrade.id));
     if (structureChanged) {
-      els.upgradeList.querySelectorAll(".upgrade-group").forEach((group) => group.remove());
       for (const [id, node] of upgradeNodes) {
         if (!visibleIds.has(id)) {
           node.remove();
@@ -328,6 +356,7 @@ export function createUI(getState, actions) {
         els.upgradeList.append(empty);
       }
       empty.textContent = selectedUpgradeTab === "purchased" ? "No upgrades purchased yet." : "No upgrades in this view yet.";
+      syncChildren(els.upgradeList, [empty]);
       return;
     }
     empty?.remove();
@@ -338,19 +367,25 @@ export function createUI(getState, actions) {
     let previousGeneratorId = null;
     const orderedNodes = [];
     let currentGroupBody = null;
+    const groupedRows = new Map();
     for (const upgrade of orderedUpgrades) {
       if (structureChanged && selectedUpgradeTab === "generator" && upgrade.effect.generatorId !== previousGeneratorId) {
         previousGeneratorId = upgrade.effect.generatorId;
         const group = getGeneratorUpgradeGroups(visibleUpgrades).find((item) => item.generator.id === previousGeneratorId);
         const purchasedCount = group.upgrades.filter((item) => state.purchasedUpgrades.includes(item.id)).length;
-        const groupNode = document.createElement("details");
-        groupNode.className = "upgrade-group";
-        groupNode.dataset.upgradeGroup = previousGeneratorId;
-        groupNode.open = getOwned(state, previousGeneratorId) > 0 && purchasedCount < group.upgrades.length;
-        groupNode.innerHTML = `<summary><strong></strong><span></span></summary><div class="upgrade-group-body"></div>`;
+        let groupNode = upgradeGroupNodes.get(previousGeneratorId);
+        if (!groupNode) {
+          groupNode = document.createElement("details");
+          groupNode.className = "upgrade-group";
+          groupNode.dataset.upgradeGroup = previousGeneratorId;
+          groupNode.open = getOwned(state, previousGeneratorId) > 0 && purchasedCount < group.upgrades.length;
+          groupNode.innerHTML = `<summary><strong></strong><span></span></summary><div class="upgrade-group-body"></div>`;
+          upgradeGroupNodes.set(previousGeneratorId, groupNode);
+        }
         groupNode.querySelector("strong").textContent = group.generator.name;
         groupNode.querySelector("span").textContent = `${purchasedCount} / ${group.upgrades.length}`;
         currentGroupBody = groupNode.querySelector(".upgrade-group-body");
+        groupedRows.set(currentGroupBody, []);
         orderedNodes.push(groupNode);
       }
       let row = upgradeNodes.get(upgrade.id);
@@ -379,24 +414,29 @@ export function createUI(getState, actions) {
       }
 
       if (structureChanged) {
-        if (selectedUpgradeTab === "generator") currentGroupBody.append(row);
+        if (selectedUpgradeTab === "generator") groupedRows.get(currentGroupBody).push(row);
         else orderedNodes.push(row);
       }
 
       const affordable = state.shards >= upgrade.cost;
       const purchased = state.purchasedUpgrades.includes(upgrade.id);
+      const unlocked = isUpgradeUnlocked(state, upgrade);
       const preview = purchased ? null : getUpgradePurchasePreview(state, upgrade);
       row.classList.toggle("is-affordable", affordable && !purchased);
-      row.classList.toggle("is-locked", !affordable && !purchased);
+      row.classList.toggle("is-locked", (!affordable || !unlocked) && !purchased);
       row.classList.toggle("is-owned", purchased);
       row.querySelector(".upgrade-chip-cost").textContent = purchased ? "Owned" : formatNumber(upgrade.cost);
       row.querySelector(".upgrade-details-copy").textContent = purchased
         ? upgrade.description
         : `${upgrade.description} ${formatNumber(preview.beforeRate)}/s → ${formatNumber(preview.afterRate)}/s; click ${formatNumber(preview.beforeClick)} → ${formatNumber(preview.afterClick)}.`;
       row.querySelector("button").hidden = purchased;
-      row.querySelector("button").disabled = purchased || !affordable;
+      row.querySelector("button").disabled = purchased || !affordable || !unlocked;
+      row.querySelector("button").textContent = unlocked ? "Buy" : "Locked";
     }
-    if (structureChanged) els.upgradeList.append(...orderedNodes);
+    if (structureChanged) {
+      for (const [body, rows] of groupedRows) syncChildren(body, rows);
+      syncChildren(els.upgradeList, orderedNodes);
+    }
   }
 
   function renderRiftUpgradeCollection(state) {
@@ -420,9 +460,9 @@ export function createUI(getState, actions) {
     const potentialResonance = getPotentialResonance(state);
     const nextResonance = state.totalEchoesEarned + availableEchoes;
     const bonusNow = (getResonanceMultiplier(state) - 1) * 100;
-    const bonusAfter = nextResonance * getResonancePercentPerLevelForUi(state);
+    const bonusAfter = nextResonance * getResonancePercentPerLevel(state);
 
-    els.enterRiftBtn.disabled = availableEchoes <= 0;
+    els.enterRiftBtn.disabled = availableEchoes <= 0 || Boolean(state.activeChallenge);
     els.enterRiftBtn.textContent = availableEchoes > 0 ? "Enter the Rift" : "The Rift Sleeps";
     const rows = [
       ["Echoes Held", formatNumber(state.echoes)],
@@ -430,9 +470,9 @@ export function createUI(getState, actions) {
       ["Resonance", formatNumber(state.resonance)],
       ["Resonance Bonus", `${formatPercent(bonusNow)} now · ${formatPercent(bonusAfter)} after`],
       ["Next Echo", `${formatNumber(getShardsForResonance(potentialResonance + 1))} lifetime Shards`],
-      ["Passive Baseline", `${formatNumber(forecast.passiveBefore)}/s → ${formatNumber(forecast.passiveAfter)}/s`],
+      ["One Whisperer", `${formatNumber(forecast.passiveBefore)}/s → ${formatNumber(forecast.passiveAfter)}/s`],
       ["Click Baseline", `${formatNumber(forecast.clickBefore)} → ${formatNumber(forecast.clickAfter)}`],
-      ["Replay Estimate", formatDuration(forecast.replaySeconds)],
+      ["Replay Estimate", forecast.replaySeconds === null ? "Not yet measured" : formatDuration(forecast.replaySeconds)],
       ["Will Dissolve", `${formatNumber(forecast.lostGenerators)} generators · ${formatNumber(forecast.lostUpgrades)} upgrades`],
     ];
     els.riftPreview.innerHTML = rows.map(([label, value]) => `<div class="rift-preview-row"><span>${label}</span><strong>${value}</strong></div>`).join("");
@@ -472,16 +512,10 @@ export function createUI(getState, actions) {
     els.logoButton.classList.toggle("has-production-surge", state.productionSurgeSeconds > 0);
   }
 
-  function getResonancePercentPerLevelForUi(state) {
-    let percent = state.purchasedRiftwork.includes("pressureMemory") ? 1.1 : 1;
-    if (state.purchasedRiftwork.includes("resonanceEngine")) percent *= 1.25;
-    return percent;
-  }
-
   function renderRiftwork(state, structureChanged) {
     if (!structureChanged) return;
     const constellation = getRiftConstellation(state);
-    els.riftworkList.innerHTML = constellation.map((branch) => `
+    patchTemplate(els.riftworkList, constellation.map((branch) => `
       <section class="rift-branch" data-rift-branch="${branch.id}">
         <header><span class="branch-mark"></span><div><strong>${branch.name}</strong><small>${branch.description}</small></div></header>
         <div class="branch-path">
@@ -495,7 +529,7 @@ export function createUI(getState, actions) {
             <span><strong>${aspect.name}</strong><small>${aspect.description}</small></span><b>${aspect.pending ? "Slotted" : aspect.unlocked ? "Equip" : `${aspect.cost} E`}</b>
           </button>`).join("")}
         </div>
-      </section>`).join("");
+      </section>`).join(""));
   }
 
   function renderRunHistory(state) {
@@ -510,11 +544,60 @@ export function createUI(getState, actions) {
   }
 
   function renderLongTerm(state) {
+    if (selectedGoalTab !== "chronicle") lastChronicleKey = "";
     renderCampaignCapstone(state);
     if (selectedGoalTab === "acclaim") renderAchievements(state);
     if (selectedGoalTab === "work") renderWork(state);
     if (selectedGoalTab === "challenges") renderChallenges(state);
     if (selectedGoalTab === "chronicle") renderChronicle(state);
+    if (selectedGoalTab === "automation") renderAutomation(state);
+    if (selectedGoalTab === "mastery") renderMastery(state);
+    if (selectedGoalTab === "expeditions") renderExpeditions(state);
+  }
+
+  function renderMastery(state) {
+    patchTemplate(els.goalView, `<p>${getMasteryRanks(state)} / 80 ranks · ${state.masteryTokens} Mastery tokens</p>${state.riftEntries < 1 ? '<p class="empty-note">Unlocks at the first Rift.</p>' : ""}<div class="mastery-list">${GENERATORS.map((generator) => {
+      const item = state.mastery[generator.id];
+      const target = MASTERY_RANK_SECONDS[item.rank];
+      return `<article class="mastery-row"><header><strong>${generator.name}</strong><span>Rank ${item.rank} / 5</span></header><progress max="${target || 1}" value="${target ? item.progress : 1}" aria-label="${generator.name} mastery"></progress><label>Next Rift specialization<select data-specialization="${generator.id}" ${state.riftEntries < 1 ? "disabled" : ""}><option value="focus" ${item.pending === "focus" ? "selected" : ""}>Focus: +10% per rank</option><option value="chorus" ${item.pending === "chorus" ? "selected" : ""}>Chorus: others +1% per rank</option></select></label><small>Active: ${item.specialization === "focus" ? "Focus" : "Chorus"}${target ? ` · ${Math.floor(item.progress / target * 100)}%` : " · Mastered"}</small></article>`;
+    }).join("")}</div>`);
+  }
+
+  function renderExpeditions(state) {
+    const active = state.activeExpedition;
+    const type = active && EXPEDITION_TYPES.find((item) => item.id === active.type);
+    const target = type ? type.target * Math.pow(1.25, active.tier) : 0;
+    patchTemplate(els.goalView, `<p>${state.expeditionsCompleted} expeditions completed · ${state.expeditionMaterials} Survey materials</p>${active ? `<section class="expedition-active"><strong>${type.name} · Tier ${active.tier}</strong><p>${formatNumber(active.state.runShards)} / ${formatNumber(target)} Shards</p><progress max="1" value="${Math.min(1, active.state.runShards / target)}" aria-label="Expedition progress"></progress><small>${formatNumber(getPassiveRate(active.state))}/s · ${formatDuration(active.seconds)}</small><button type="button" data-abandon-expedition>Abandon expedition</button></section>` : ""}<div class="expedition-list">${getExpeditionContracts(state).map((contract) => `<article><header><strong>${contract.name}</strong><span>Tier ${contract.tier}</span></header><p>${contract.description}</p><small>Target ${formatNumber(contract.target)} Shards · ${Math.min(10, 1 + Math.floor(contract.tier / 3))} materials</small><button type="button" data-expedition="${contract.key}" ${active || state.riftEntries < 2 ? "disabled" : ""}>${state.riftEntries < 2 ? "Unlocks at Rift 2" : "Dispatch"}</button><small>${state.expeditionRecords[contract.id] ? `Best: tier ${state.expeditionRecords[contract.id].tier} in ${formatDuration(state.expeditionRecords[contract.id].seconds)}` : "No record yet"}</small></article>`).join("")}</div><button type="button" data-refresh-expeditions ${active ? "disabled" : ""}>Refresh contracts</button>`);
+  }
+
+  function renderPinnedObjective(state, rate) {
+    const container = document.querySelector("#pinned-objective");
+    container.hidden = !state.pinnedObjective;
+    document.querySelector("#objective-picker").value = state.pinnedObjective || "";
+    if (!state.pinnedObjective) return;
+    let title = "", detail = "", controls = "";
+    if (state.pinnedObjective === "rift") {
+      title = "Next Rift";
+      const remaining = Math.max(0, getShardsForResonance(state.totalEchoesEarned + 1) - state.lifetimeShards);
+      detail = remaining ? `${formatNumber(remaining)} Shards remaining${rate > 0 ? ` · ${formatDuration(remaining / rate)} at current passive rate` : " · Gather Shards to buy a Whisperer"}` : "Echoes are ready";
+      if (state.activeChallenge) controls = '<button type="button" data-recover-challenge>Abandon challenge</button>';
+    } else if (state.pinnedObjective === "work") {
+      title = "Blackglass Sanctum";
+      const stage = getCurrentWorkStage(state);
+      detail = stage ? `${stage.name}: ${formatNumber(state.projectProgress)} / ${formatNumber(stage.target)}` : "Complete";
+      if (stage && state.projectAllocation === 0) controls = '<button type="button" data-recover-allocation>Allocate 25%</button>';
+    } else if (state.pinnedObjective === "mastery") {
+      title = "Generator Mastery"; detail = `${getMasteryRanks(state)} / 80 ranks${state.riftEntries < 1 ? " · Requires first Rift" : ""}`;
+      controls = '<button type="button" data-open-goal="mastery">View mastery</button>';
+    } else {
+      title = "Expeditions"; detail = `${state.expeditionsCompleted} completed${state.riftEntries < 2 ? " · Requires two Rifts" : state.activeExpedition ? " · Crew underway" : " · Crew available"}`;
+      controls = '<button type="button" data-open-goal="expeditions">View expeditions</button>';
+    }
+    patchTemplate(container, `<strong>${title}</strong><p>${detail}</p>${controls}`);
+  }
+
+  function renderAutomation(state) {
+    patchTemplate(els.goalView, `<div class="setting-list">${[["generators", "Generator purchasing", 1], ["upgrades", "Upgrade repurchasing", 2], ["work", "Work allocation: 25%", 3]].map(([key, label, rifts]) => `<label><span>${label}${state.riftEntries < rifts ? ` (Rift ${rifts})` : ""}</span><input type="checkbox" data-automation="${key}" ${state.automation[key] ? "checked" : ""} ${state.riftEntries < rifts ? "disabled" : ""}></label>`).join("")}<label><span>Reserve Shards</span><input type="number" min="0" step="1" data-automation="reserve" value="${state.automation.reserve}" ${state.riftEntries < 1 ? "disabled" : ""}></label><label><span>Generator target</span><select data-automation="target" ${state.riftEntries < 1 ? "disabled" : ""}>${[{ id: "efficient", name: "Best payback" }, ...GENERATORS].map((item) => `<option value="${item.id}" ${state.automation.target === item.id ? "selected" : ""}>${item.name}</option>`).join("")}</select></label></div>`);
   }
 
   function renderCampaignCapstone(state) {
@@ -522,7 +605,7 @@ export function createUI(getState, actions) {
     const container = document.querySelector("#campaign-capstone");
     if (state.campaignComplete) {
       container.className = "campaign-capstone is-complete";
-      container.innerHTML = `<strong>The First Storm Endures</strong><span>Campaign complete · Endless play unlocked</span>`;
+      container.innerHTML = `<strong>${state.chapterThreeComplete ? "The Far Sky Opens" : state.chapterTwoComplete ? "A Chorus Beyond the Glass" : "The First Storm Endures"}</strong><span>Chapter ${state.chapterThreeComplete ? "Three" : state.chapterTwoComplete ? "Two" : "One"} complete</span><small>${state.chapterThreeComplete ? "Repeatable expeditions and mastery remain open." : `Next chapter: ${getMasteryRanks(state)} / ${state.chapterTwoComplete ? 40 : 15} mastery ranks · ${state.expeditionsCompleted} / ${state.chapterTwoComplete ? 100 : 15} expeditions · ${state.chapterTwoComplete ? `${state.extendedWorks.mastery + state.extendedWorks.expedition} / 8 Work stages` : `${state.extendedWorks.mastery} / 2 Hall stages`}`}</small>`;
       return;
     }
     container.className = "campaign-capstone";
@@ -542,23 +625,51 @@ export function createUI(getState, actions) {
     const work = getCurrentWork(state);
     const stage = getCurrentWorkStage(state);
     const progress = stage ? Math.min(1, state.projectProgress / stage.target) : 1;
-    els.goalView.innerHTML = `<article class="work-view ${stage ? "" : "is-complete"}"><p>${work.description}</p><header><span><small>Stage ${Math.min(state.projectStage + 1, work.stages.length)} / ${work.stages.length}</small><strong>${stage?.name || "Sanctum Awakened"}</strong></span><b>${stage ? `${formatNumber(state.projectProgress)} / ${formatNumber(stage.target)}` : "Complete"}</b></header><span class="work-progress"><i style="width:${Math.round(progress * 100)}%"></i></span><p class="work-reward">${stage ? stage.reward : "All Sanctum rewards are active."}</p><div class="allocation-controls">${PROJECT_ALLOCATIONS.map((value) => `<button type="button" data-project-allocation="${value}" class="${state.projectAllocation === value ? "is-selected" : ""}" ${!stage && value > 0 ? "disabled" : ""}>${value * 100}%</button>`).join("")}</div><small>Diverts the selected share of passive and offline production into construction.</small></article>`;
+    patchTemplate(els.goalView, `<article class="work-view ${stage ? "" : "is-complete"}"><p>${work.description}</p><header><span><small>Stage ${Math.min(state.projectStage + 1, work.stages.length)} / ${work.stages.length}</small><strong>${stage?.name || "Sanctum Awakened"}</strong></span><b>${stage ? `${formatNumber(state.projectProgress)} / ${formatNumber(stage.target)}` : "Complete"}</b></header><span class="work-progress"><i style="width:${Math.round(progress * 100)}%"></i></span><p class="work-reward">${stage ? stage.reward : "All Sanctum rewards are active."}</p><div class="allocation-controls">${PROJECT_ALLOCATIONS.map((value) => `<button type="button" data-project-allocation="${value}" class="${state.projectAllocation === value ? "is-selected" : ""}" aria-pressed="${state.projectAllocation === value}" ${!stage && value > 0 ? "disabled" : ""}>${value * 100}%</button>`).join("")}</div><small>Diverts the selected share of passive and offline production into construction.</small></article>${extendedWorksMarkup(state)}`);
+  }
+
+  function extendedWorksMarkup(state) {
+    return EXTENDED_WORKS.map((work) => {
+      const rank = state.extendedWorks[work.id];
+      const stage = work.stages[rank];
+      const resource = work.resource === "masteryTokens" ? "Mastery tokens" : "Survey materials";
+      return `<section class="extended-work"><header><strong>${work.name}</strong><span>${rank} / 4</span></header><p>${work.reward}</p>${stage ? `<strong>${stage.name}</strong><small>${formatNumber(stage.cost)} Shards · ${stage.material} ${resource} (${state[work.resource]} held)</small><button type="button" data-build-work="${work.id}" ${state.riftEntries < 1 || state.shards < stage.cost || state[work.resource] < stage.material ? "disabled" : ""}>Construct stage</button>` : '<strong>Complete</strong>'}</section>`;
+    }).join("");
   }
 
   function renderChallenges(state) {
     const active = getActiveChallenge(state);
-    els.goalView.innerHTML = `${active ? `<div class="active-challenge"><strong>${active.name}</strong><span>${formatNumber(state.runShards)} / ${formatNumber(active.target)} run Shards</span><button type="button" data-abandon-challenge>Abandon</button></div>` : ""}<div class="challenge-list">${CHALLENGES.map((challenge) => {
+    patchTemplate(els.goalView, `${active ? `<div class="active-challenge"><strong>${active.name}</strong><span>${formatNumber(state.runShards)} / ${formatNumber(active.target)} run Shards</span><button type="button" data-abandon-challenge>Abandon</button></div>` : ""}<div class="challenge-list">${CHALLENGES.map((challenge) => {
       const complete = state.completedChallenges.includes(challenge.id);
-      return `<article class="challenge-row ${complete ? "is-complete" : ""}"><div><strong>${challenge.name}</strong><p>${challenge.description}</p><small>Reward: ${challenge.reward}</small></div><button type="button" data-challenge-id="${challenge.id}" ${active || complete ? "disabled" : ""}>${complete ? "Complete" : active?.id === challenge.id ? "Active" : "Begin"}</button></article>`;
-    }).join("")}</div>`;
+      return `<article class="challenge-row ${complete ? "is-complete" : ""}"><div><strong>${challenge.name}</strong><p>${challenge.description}</p><small>Reward: ${challenge.reward}</small></div><button type="button" data-challenge-id="${challenge.id}" ${active || complete || state.riftEntries < challenge.unlockRifts ? "disabled" : ""}>${complete ? "Complete" : active?.id === challenge.id ? "Active" : state.riftEntries < challenge.unlockRifts ? `Rift ${challenge.unlockRifts}` : "Begin"}</button></article>`;
+    }).join("")}</div>`);
   }
 
   function renderChronicle(state) {
-    if (!state.chronicleEntries.length) {
+    const key = JSON.stringify([state.chronicleEntries, state.permanentLore]);
+    if (key === lastChronicleKey) return;
+    lastChronicleKey = key;
+    if (!state.chronicleEntries.length && !state.permanentLore.length) {
       els.goalView.innerHTML = `<p class="empty-note">Discover generators, earn Acclaim, complete Works, and cross the Rift to fill the Chronicle.</p>`;
       return;
     }
-    els.goalView.innerHTML = `<div class="chronicle-list">${[...state.chronicleEntries].reverse().map((entry) => `<article><span>${entry.type}</span><div><strong>${entry.title}</strong><p>${entry.text}</p></div></article>`).join("")}</div>`;
+    const list = document.createElement("div");
+    list.className = "chronicle-list";
+    const archive = state.permanentLore.map((text) => ({ title: "Permanent Chronicle", type: "archive", text }));
+    for (const entry of [...state.chronicleEntries].reverse().concat(archive)) {
+      const article = document.createElement("article");
+      const type = document.createElement("span");
+      const body = document.createElement("div");
+      const title = document.createElement("strong");
+      const text = document.createElement("p");
+      type.textContent = entry.type;
+      title.textContent = entry.title;
+      text.textContent = entry.text;
+      body.append(title, text);
+      article.append(type, body);
+      list.append(article);
+    }
+    els.goalView.replaceChildren(list);
   }
 
   function renderStatistics(state, modifiers, passiveRate, clickPower) {

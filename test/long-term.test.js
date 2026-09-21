@@ -66,20 +66,23 @@ test("offline progress separates player gain from project investment", () => {
 
 test("challenge starts reset current run and enforce authored restrictions", () => {
   const quiet = createFreshState();
+  quiet.riftEntries = 1;
   quiet.shards = 100;
   quiet.generatorCounts.whisperer = 5;
   assert.equal(startChallenge(quiet, "quietStorm"), true);
   assert.equal(quiet.shards, 0);
-  assert.equal(quiet.generatorCounts.whisperer, 0);
+  assert.equal(quiet.generatorCounts.whisperer, 1);
   assert.equal(getClickPower(quiet), 0);
   assert.equal(abandonChallenge(quiet), true);
 
   const single = createFreshState();
+  single.riftEntries = 2;
   startChallenge(single, "singleVoice");
   assert.equal(canBuyGenerator(single, "whisperer"), true);
   assert.equal(canBuyGenerator(single, "galeLoom"), false);
 
   const fractured = createFreshState();
+  fractured.riftEntries = 3;
   const ordinaryCost = getGeneratorUnitCost(fractured, { id: "whisperer", baseCost: 15 });
   startChallenge(fractured, "fracturedTempo");
   assert.ok(getGeneratorUnitCost(fractured, { id: "whisperer", baseCost: 15 }) > ordinaryCost);
@@ -87,6 +90,7 @@ test("challenge starts reset current run and enforce authored restrictions", () 
 
 test("challenge completion grants one-time permanent rewards", () => {
   const state = createFreshState();
+  state.riftEntries = 2;
   startChallenge(state, "singleVoice");
   state.runShards = 100_000_000;
   reconcileLongTerm(state);

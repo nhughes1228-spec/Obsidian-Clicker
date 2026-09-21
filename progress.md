@@ -1,5 +1,15 @@
 Original prompt: Generate a cookie-clicker clone using the Obsidian Winds logo as the big cookie. We can figure out what all the other parts of the game will be called but for now let's focus on building the game itself.
 
+Reliability and expansion implementation (2026-09-20):
+- Preserved the previously uncommitted modular build in commit 0b36d17 before edits.
+- Implemented save v7 recovery/backup protection, explicit import/reset replacement, plain-text Chronicle rendering, challenge bootstrapping, gross-income construction accounting, permanent Acclaim/objectives, and corrected Rift comparison/reset reuse.
+- Added shared commands and live/offline simulation, deterministic hooks, single-writer tabs, typed core checks, bounded numeric handling, stable Work controls and consolidated inline CSS.
+- Added progressive automation, gated/rebalanced challenges, five-rank generator mastery with two specializations, two resource-gated Works, independent repeatable expeditions with capped power, three campaign chapters and optional pinned objectives.
+- Added regression/browser tests, a dependency lockfile, fresh-save campaign policies, an explicit dist build and CI/manual Pages workflows. No remote push or deployment has occurred.
+- Final verification (2026-09-21): 65 unit tests, 33 Chromium browser tests, shared-core type checks and all 300 fresh-save campaigns pass. Screenshots and the develop-web-game client output were inspected. Chapter Three is reached in 34.33-35 modeled days; see BALANCE_REPORT.md for 30/60/90-day results and limitations.
+- Added permanent expedition cosmetic titles without additional production inflation. Remaining release checks: Safari/Firefox, real-device audio and production hosting configuration. No push or deployment performed.
+- Implementation details, limitations, migration behavior and release instructions are in IMPLEMENTATION.md.
+
 Notes:
 - Implemented the first playable static Obsidian Clicker scaffold with vanilla HTML/CSS/JS.
 - Uses `assets/obsidian-winds-logo.png` as the main clickable logo.

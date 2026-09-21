@@ -1,6 +1,7 @@
 import { ACCLAIM_MILESTONES, GENERATORS, RIFTWORK, UPGRADES } from "./content.js";
 import {
   deriveModifiers,
+  createRiftState,
   getAcclaimCount,
   getAvailableEchoes,
   getClickPower,
@@ -121,27 +122,19 @@ export function getRiftworkCatalog(state) {
 
 export function getRiftForecast(state) {
   const echoes = getAvailableEchoes(state);
-  const runSeconds = Math.max(1, Math.floor((Date.now() - Date.parse(state.runStartedAt || "")) / 1000) || 1);
   const currentMultiplier = getProductionMultiplier(state);
-  const futureState = {
-    ...state,
-    resonance: state.totalEchoesEarned + echoes,
-    attunement: state.pendingAttunement,
-    activeAspects: [...state.pendingAspects],
-    generatorCounts: Object.fromEntries(GENERATORS.map((generator) => [generator.id, 0])),
-    purchasedUpgrades: [],
-    runShards: 0,
-    momentum: 0,
-  };
+  const futureState = createRiftState(state, echoes, state.lastSimulatedAt || Date.now());
   const futureMultiplier = getProductionMultiplier(futureState);
-  const comparisonCurrent = { ...state, generatorCounts: { ...state.generatorCounts, whisperer: 1 }, purchasedUpgrades: [], momentum: 0, clickSurgeSeconds: 0, productionSurgeSeconds: 0 };
-  const comparisonFuture = { ...futureState, generatorCounts: { ...futureState.generatorCounts, whisperer: 1 } };
+  const basket = Object.fromEntries(GENERATORS.map((generator) => [generator.id, generator.id === "whisperer" ? 1 : 0]));
+  const baseline = { generatorCounts: basket, purchasedUpgrades: [], runShards: 0, momentum: 0, clickSurgeSeconds: 0, productionSurgeSeconds: 0 };
+  const comparisonCurrent = { ...state, ...baseline, achievementDates: futureState.achievementDates };
+  const comparisonFuture = { ...futureState, ...baseline };
   const passiveBefore = getPassiveRate(comparisonCurrent);
   const passiveAfter = getPassiveRate(comparisonFuture);
   const clickBefore = getClickPower(comparisonCurrent);
   const clickAfter = getClickPower(comparisonFuture);
   const improvement = passiveBefore > 0 ? passiveAfter / passiveBefore : futureMultiplier / Math.max(currentMultiplier, 0.0001);
-  const replaySeconds = Math.max(60, runSeconds / Math.max(1, improvement));
+  const replaySeconds = null;
   return {
     echoes,
     resonanceBefore: state.resonance,
@@ -159,7 +152,7 @@ export function getRiftForecast(state) {
     lostUpgrades: state.purchasedUpgrades.length,
     nextAttunement: state.pendingAttunement,
     nextAspects: [...state.pendingAspects],
-    recommendation: echoes <= 0 ? "Wait for at least one Echo." : improvement >= 1.05 ? "A strong time to enter." : "A modest gain; waiting will improve the reset.",
+    recommendation: state.activeChallenge ? "Crossing unavailable during a challenge." : echoes <= 0 ? "No Echoes available yet." : `${echoes} Echoes ready. Run inventory resets; permanent rewards remain.`,
   };
 }
 

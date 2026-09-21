@@ -42,7 +42,7 @@ test("Rift forecast reports losses, gains, replay estimate, and selected build",
   assert.equal(forecast.lostUpgrades, 1);
   assert.equal(forecast.nextAttunement, "active");
   assert.deepEqual(forecast.nextAspects, ["tempoGlass"]);
-  assert.ok(forecast.replaySeconds >= 60);
+  assert.equal(forecast.replaySeconds, null);
   assert.ok(forecast.passiveBefore > 0);
   assert.ok(forecast.passiveAfter > 0);
   assert.ok(forecast.clickAfter > forecast.clickBefore);

@@ -1,6 +1,6 @@
 export const SAVE_KEY = "obsidian-clicker-save-v1";
 export const HEARTBEAT_KEY = "obsidian-clicker-active-heartbeat-v1";
-export const SAVE_VERSION = 6;
+export const SAVE_VERSION = 7;
 export const COST_GROWTH = 1.15;
 export const RIFT_BASE_SHARDS = 100_000_000;
 export const OFFLINE_CAP_SECONDS = 12 * 60 * 60;

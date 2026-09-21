@@ -8,199 +8,6 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
-  <style>
-    .score-block {
-      min-width: 0;
-      overflow: visible;
-    }
-
-    #shard-total {
-      display: block;
-      width: 100%;
-      min-height: 1.14em;
-      padding-bottom: 0.08em;
-      overflow: visible;
-      font-size: clamp(1.9rem, 6.6vw, 5.45rem);
-      font-variant-numeric: tabular-nums;
-      letter-spacing: -0.065em;
-      line-height: 1.08;
-      text-overflow: clip;
-      white-space: nowrap;
-    }
-
-    .rift-panel {
-      display: grid;
-      gap: 10px;
-      margin-bottom: 16px;
-      padding-bottom: 14px;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-    }
-
-    .rift-copy {
-      margin: 0;
-      color: var(--muted-strong);
-      font-size: 0.84rem;
-      font-weight: 600;
-      line-height: 1.45;
-    }
-
-    .rift-preview {
-      display: grid;
-      gap: 7px;
-    }
-
-    .rift-preview-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      padding: 9px 10px;
-      border: 1px solid rgba(255, 255, 255, 0.065);
-      border-radius: 10px;
-      background: rgba(114, 1, 177, 0.08);
-    }
-
-    .rift-preview-row span {
-      color: var(--muted);
-      font-size: 0.72rem;
-      font-weight: 700;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-    }
-
-    .rift-preview-row strong {
-      color: #ffffff;
-      font-size: 0.95rem;
-      font-weight: 900;
-      text-align: right;
-    }
-
-    .rift-button {
-      width: 100%;
-      padding: 12px 14px;
-      border: 1px solid rgba(133, 1, 207, 0.55);
-      border-radius: 12px;
-      background: linear-gradient(135deg, rgba(114, 1, 177, 0.42), rgba(133, 1, 207, 0.18));
-      color: #ffffff;
-      cursor: pointer;
-      font-weight: 900;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-      touch-action: manipulation;
-    }
-
-    .rift-button:hover:not(:disabled) {
-      border-color: rgba(255, 255, 255, 0.3);
-      box-shadow: 0 16px 38px rgba(114, 1, 177, 0.22);
-      transform: translateY(-1px);
-    }
-
-    .rift-button:disabled {
-      cursor: not-allowed;
-      opacity: 0.42;
-      filter: saturate(0.75);
-    }
-
-    .riftwork-list {
-      display: grid;
-      gap: 8px;
-    }
-
-    .riftwork-card {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) auto;
-      gap: 12px;
-      width: 100%;
-      padding: 11px;
-      border: 1px solid rgba(255, 255, 255, 0.075);
-      border-radius: 12px;
-      background: rgba(255, 255, 255, 0.035);
-      color: var(--ink);
-      cursor: pointer;
-      text-align: left;
-      touch-action: manipulation;
-      user-select: none;
-      -webkit-tap-highlight-color: transparent;
-    }
-
-    .riftwork-card:hover:not(:disabled) {
-      border-color: rgba(133, 1, 207, 0.58);
-      background: rgba(114, 1, 177, 0.14);
-      transform: translateY(-1px);
-    }
-
-    .riftwork-card:disabled {
-      cursor: not-allowed;
-      opacity: 0.46;
-      filter: saturate(0.8);
-    }
-
-    .riftwork-card.is-owned {
-      cursor: default;
-      opacity: 0.72;
-    }
-
-    .riftwork-card h3 {
-      margin: 0 0 4px;
-      font-size: 0.9rem;
-      font-weight: 900;
-      letter-spacing: -0.01em;
-    }
-
-    .riftwork-card p {
-      margin: 0;
-      color: var(--muted);
-      font-size: 0.78rem;
-      font-weight: 600;
-      line-height: 1.36;
-    }
-
-    .riftwork-meta {
-      display: grid;
-      align-content: center;
-      justify-items: end;
-      gap: 4px;
-      min-width: 78px;
-      color: var(--muted);
-      font-size: 0.72rem;
-      font-weight: 800;
-      text-align: right;
-      text-transform: uppercase;
-    }
-
-    @media (max-width: 900px) {
-      #shard-total {
-        font-size: clamp(1.55rem, 10vw, 4.2rem);
-        letter-spacing: -0.055em;
-        line-height: 1.1;
-      }
-    }
-
-    @media (max-width: 560px) {
-      #shard-total {
-        font-size: clamp(1.25rem, 10.2vw, 3.05rem);
-        letter-spacing: -0.045em;
-        line-height: 1.12;
-      }
-
-      .rift-preview-row,
-      .riftwork-card {
-        align-items: flex-start;
-        grid-template-columns: 1fr;
-        gap: 4px;
-      }
-
-      .rift-preview-row {
-        flex-direction: column;
-      }
-
-      .rift-preview-row strong,
-      .riftwork-meta {
-        justify-items: start;
-        text-align: left;
-      }
-    }
-  </style>
 </head>
 <body>
   <div class="app-shell">
@@ -217,6 +24,7 @@
             <button id="reset-btn" type="button" class="danger">Reset</button>
             <button id="export-save-btn" type="button">Export</button>
             <button id="import-save-btn" type="button">Import</button>
+            <button id="recover-save-btn" type="button" hidden>Keep Recovered Backup</button>
             <input id="import-save-input" type="file" accept="application/json,.json" hidden>
           </div>
           <p id="save-status" class="save-status" aria-live="polite"></p>
@@ -292,8 +100,12 @@
               <button type="button" data-goal-tab="work">Sanctum</button>
               <button type="button" data-goal-tab="challenges">Challenges</button>
               <button type="button" data-goal-tab="chronicle">Chronicle</button>
+              <button type="button" data-goal-tab="automation">Automation</button>
+              <button type="button" data-goal-tab="mastery">Mastery</button>
+              <button type="button" data-goal-tab="expeditions">Expeditions</button>
             </nav>
             <div id="goal-view" class="goal-view"></div>
+            <label class="objective-picker">Pinned objective <select id="objective-picker"><option value="">None</option><option value="rift">Next Rift</option><option value="work">Sanctum</option><option value="mastery">Mastery</option><option value="expeditions">Expeditions</option></select></label>
           </section>
 
           <section class="menu-statistics" aria-labelledby="menu-statistics-heading">
@@ -338,6 +150,8 @@
           </div>
         </section>
 
+        <section id="pinned-objective" class="pinned-objective" hidden aria-label="Pinned objective"></section>
+        <p id="session-status" class="session-status" hidden role="status"></p>
         <div id="logo-stage" class="logo-stage" data-evolution="0">
           <div id="generator-voices" class="generator-voices" aria-hidden="true"></div>
           <span id="sigil-title" class="sigil-title">Dormant Sigil</span>

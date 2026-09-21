@@ -15,9 +15,9 @@ export const OBSIDIAN_WORKS = [{
 }];
 
 export const CHALLENGES = [
-  { id: "quietStorm", name: "Quiet Storm", description: "Clicks gather no Shards. Reach 1M run Shards through generators.", target: 1_000_000, reward: "Offline production +10%" },
-  { id: "singleVoice", name: "Single Voice", description: "Only Whisperers may be purchased. Reach 100M run Shards.", target: 100_000_000, reward: "All production +10%" },
-  { id: "fracturedTempo", name: "Fractured Tempo", description: "Generator costs are 50% higher. Reach 1B run Shards.", target: 1_000_000_000, reward: "Click power +15%" },
+  { id: "quietStorm", name: "Quiet Storm", description: "Clicks gather no Shards. Reach 1M run Shards through generators.", target: 1_000_000, unlockRifts: 1, reward: "Offline production +10%" },
+  { id: "singleVoice", name: "Single Voice", description: "Only Whisperers may be purchased. Reach 1M run Shards.", target: 1_000_000, unlockRifts: 2, reward: "All production +10%" },
+  { id: "fracturedTempo", name: "Fractured Tempo", description: "Generator costs are 50% higher. Reach 10M run Shards.", target: 10_000_000, unlockRifts: 3, reward: "Click power +15%" },
 ];
 
 export const CAMPAIGN_REQUIREMENTS = {
@@ -51,38 +51,38 @@ export function sanitizeLongTermState(raw, state) {
     : {};
   state.projectId = OBSIDIAN_WORKS.some((work) => work.id === raw.projectId) ? raw.projectId : fresh.projectId;
   state.projectStage = integerRange(raw.projectStage, 0, getCurrentWork(state).stages.length);
-  state.projectProgress = nonNegative(raw.projectProgress);
-  state.projectAllocation = PROJECT_ALLOCATIONS.includes(raw.projectAllocation) ? raw.projectAllocation : 0;
+  state.projectProgress = Math.min(nonNegative(raw.projectProgress), getCurrentWorkStage(state)?.target || 0);
+  state.projectAllocation = state.projectStage < getCurrentWork(state).stages.length && PROJECT_ALLOCATIONS.includes(raw.projectAllocation) ? raw.projectAllocation : 0;
   state.completedWorkStages = integerRange(raw.completedWorkStages, 0, getCurrentWork(state).stages.length);
   state.activeChallenge = CHALLENGES.some((item) => item.id === raw.activeChallenge) ? raw.activeChallenge : null;
   state.completedChallenges = knownIds(raw.completedChallenges, new Set(CHALLENGES.map((item) => item.id)));
   state.chronicleEntries = Array.isArray(raw.chronicleEntries)
-    ? raw.chronicleEntries.filter((entry) => entry && typeof entry.title === "string" && typeof entry.text === "string").slice(-40)
+    ? raw.chronicleEntries.slice(-40).filter((entry) => entry && typeof entry.title === "string" && typeof entry.text === "string").map((entry) => ({ title: entry.title.slice(0, 160), text: entry.text.slice(0, 2000), type: typeof entry.type === "string" ? entry.type.slice(0, 40) : "discovery" }))
     : [];
   state.discoveredGenerators = knownIds(raw.discoveredGenerators, new Set(GENERATORS.map((item) => item.id)));
   state.campaignComplete = Boolean(raw.campaignComplete);
   state.campaignCompletedAt = typeof raw.campaignCompletedAt === "string" ? raw.campaignCompletedAt : null;
 }
 
-export function reconcileLongTerm(state) {
+export function reconcileLongTerm(state, now = Date.now()) {
   const unlocked = [];
   for (const milestone of ACCLAIM_MILESTONES) {
     if (!state.achievementDates[milestone.id] && getMilestoneValue(state, milestone) >= milestone.amount) {
-      state.achievementDates[milestone.id] = new Date().toISOString();
+      state.achievementDates[milestone.id] = new Date(now).toISOString();
       unlocked.push(milestone);
       addChronicle(state, `Acclaim: ${milestone.label}`, getAchievementReward(milestone).label, "acclaim");
     }
   }
   const challenge = getActiveChallenge(state);
-  if (challenge && state.runShards >= challenge.target) {
+  if (challenge && !state.expeditionMode && state.runShards >= challenge.target) {
     state.completedChallenges = [...new Set([...state.completedChallenges, challenge.id])];
     state.activeChallenge = null;
     addChronicle(state, `Challenge Complete: ${challenge.name}`, challenge.reward, "challenge");
   }
   if (!state.campaignComplete && isCampaignReady(state)) {
     state.campaignComplete = true;
-    state.campaignCompletedAt = new Date().toISOString();
-    addChronicle(state, "The First Storm Endures", "The initial campaign is complete. Endless play remains open.", "capstone");
+    state.campaignCompletedAt = new Date(now).toISOString();
+    addChronicle(state, "The First Storm Endures", "Chapter One is complete. The storm remembers.", "capstone");
   }
   return unlocked;
 }
@@ -101,27 +101,35 @@ export function investInWork(state, amount) {
     addChronicle(state, `${getCurrentWork(state).name}: ${stage.name}`, `${stage.reward}. ${stage.lore}`, "work");
     stage = getCurrentWorkStage(state);
   }
+  const unused = !stage ? state.projectProgress / efficiency : 0;
   if (!stage) {
     state.projectProgress = 0;
     state.projectAllocation = 0;
   }
-  return invested;
+  return Math.max(0, Math.min(amount, amount - unused));
 }
 
 export function setProjectAllocation(state, value) {
-  if (PROJECT_ALLOCATIONS.includes(value)) state.projectAllocation = value;
+  if (PROJECT_ALLOCATIONS.includes(value)) state.projectAllocation = getCurrentWorkStage(state) ? value : 0;
 }
 
-export function startChallenge(state, id) {
+export function startChallenge(state, id, now = Date.now()) {
   const challenge = CHALLENGES.find((item) => item.id === id);
-  if (!challenge || state.activeChallenge || state.completedChallenges.includes(id)) return false;
+  if (!challenge || state.riftEntries < challenge.unlockRifts || state.activeChallenge || state.completedChallenges.includes(id)) return false;
   state.activeChallenge = id;
   state.shards = 0;
   state.runShards = 0;
-  state.runStartedAt = new Date().toISOString();
+  state.runStartedAt = new Date(now).toISOString();
   state.generatorCounts = Object.fromEntries(GENERATORS.map((generator) => [generator.id, 0]));
   state.purchasedUpgrades = [];
   state.momentum = 0;
+  state.momentumGraceSeconds = 0;
+  state.lastActiveClickAt = 0;
+  state.clickSurgeSeconds = 0;
+  state.productionSurgeSeconds = 0;
+  state.activeWindRift = null;
+  state.nextWindRiftIn = 35;
+  if (id === "quietStorm") state.generatorCounts.whisperer = 1;
   state.peakRunPassiveRate = 0;
   addChronicle(state, `Challenge Begun: ${challenge.name}`, challenge.description, "challenge");
   return true;
@@ -152,12 +160,12 @@ export function getAchievementCatalog(state) {
     category: getAchievementCategory(milestone),
     value: getMilestoneValue(state, milestone),
     completedAt: state.achievementDates[milestone.id] || null,
-    reward: getAchievementReward(milestone, index),
+    reward: getAchievementReward(milestone),
   }));
 }
 
-export function getAchievementReward(milestone, index = ACCLAIM_MILESTONES.findIndex((item) => item.id === milestone.id)) {
-  if ((index + 1) % 5 === 0) return { type: "production", value: 0.05, label: "All production +5%" };
+export function getAchievementReward(milestone) {
+  if (["shards1t", "generators250", "rift5", "passive1m"].includes(milestone.id)) return { type: "production", value: 0.05, label: "All production +5%" };
   if (milestone.type === "totalClicks") return { type: "critical", value: 0.005, label: "Critical chance +0.5%" };
   if (milestone.type === "riftEntries" || milestone.type === "totalEchoesEarned") return { type: "project", value: 0.05, label: "Obsidian Work efficiency +5%" };
   return { type: "cosmetic", value: 0, label: "Chronicle entry unlocked" };
@@ -243,8 +251,11 @@ export function getCampaignProgress(state) {
 }
 
 function addChronicle(state, title, text, type) {
-  state.chronicleEntries.push({ id: `${type}-${Date.now()}-${state.chronicleEntries.length}`, type, title, text, unlockedAt: new Date().toISOString() });
+  const now = state.lastSimulatedAt || Date.now();
+  state.chronicleEntries.push({ id: `${type}-${now}-${state.chronicleEntries.length}`, type, title, text, unlockedAt: new Date(now).toISOString() });
   state.chronicleEntries = state.chronicleEntries.slice(-40);
+  const lore = `${title}: ${text}`;
+  if (["work", "discovery", "capstone"].includes(type) && state.permanentLore && !state.permanentLore.includes(lore)) state.permanentLore.push(lore);
 }
 
 function getAchievementCategory(milestone) {

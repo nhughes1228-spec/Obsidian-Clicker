@@ -8,10 +8,18 @@ export const FIRST_RUN_OBJECTIVES = [
 ];
 
 export function getFirstRunObjective(state, passiveRate) {
-  const objective = FIRST_RUN_OBJECTIVES.find((item) => item.current(state, passiveRate) < item.target);
+  if (state.riftEntries > 0) return null;
+  const objective = FIRST_RUN_OBJECTIVES.find((item) => !state.completedObjectives?.includes(item.id) && item.current(state, passiveRate) < item.target);
   if (!objective) return null;
   const value = Math.max(0, objective.current(state, passiveRate));
   return { ...objective, value, progress: Math.min(1, value / objective.target) };
+}
+
+export function reconcileObjectives(state, passiveRate) {
+  state.completedObjectives ||= [];
+  for (const item of FIRST_RUN_OBJECTIVES) {
+    if ((state.riftEntries > 0 || item.current(state, passiveRate) >= item.target) && !state.completedObjectives.includes(item.id)) state.completedObjectives.push(item.id);
+  }
 }
 
 export function getLogoEvolution(state) {

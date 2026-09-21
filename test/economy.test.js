@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { GENERATORS, SAVE_KEY, UPGRADES } from "../src/content.js";
+import { GENERATORS, SAVE_KEY, SAVE_VERSION, UPGRADES } from "../src/content.js";
 import {
   createFreshState,
   createRiftState,
@@ -117,7 +117,7 @@ test("state sanitation drops unknown and malformed values", () => {
   assert.deepEqual(state.purchasedRiftwork, []);
 });
 
-test("legacy saves migrate and current saves round-trip through version 6", () => {
+test("legacy saves migrate and current saves round-trip", () => {
   const legacy = createFreshState();
   legacy.shards = 456;
   legacy.generatorCounts[GENERATORS[0].id] = 7;
@@ -130,7 +130,7 @@ test("legacy saves migrate and current saves round-trip through version 6", () =
 
   saveState(loaded.state, storage);
   const envelope = JSON.parse(storage.getItem(SAVE_KEY));
-  assert.equal(envelope.version, 6);
+  assert.equal(envelope.version, SAVE_VERSION);
   assert.ok(Date.parse(envelope.savedAt));
   assert.equal(importSave(exportSave(loaded.state)).shards, 456);
 });

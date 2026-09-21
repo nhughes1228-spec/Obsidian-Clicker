@@ -1,20 +1,18 @@
 import {
   GENERATORS,
-  HEARTBEAT_KEY,
   MIN_OFFLINE_SECONDS,
   RIFTWORK,
   SAVE_KEY,
+  SAVE_VERSION,
   UPGRADES,
 } from "./content.js";
 import {
   createFreshState,
-  createRiftState,
   deriveModifiers,
   formatDuration,
   formatNumber,
   getAcclaimCount,
   getAcclaimMultiplier,
-  getAffordableGeneratorAmount,
   getAllProductionMultiplier,
   getAvailableEchoes,
   getClickPower,
@@ -22,54 +20,48 @@ import {
   getGeneratorBatchCost,
   getGeneratorContribution,
   getGeneratorRiftworkMultiplier,
-  getOfflineProgress,
   getOwned,
   getPassiveRate,
-  getPotentialResonance,
   getProductionMultiplier,
   getResonanceMultiplier,
   getTotalGeneratorsOwned,
   getVisibleGenerators,
   getVisibleUpgrades,
-  isUpgradeUnlocked,
 } from "./economy.js";
 import {
   exportSave,
   getNewestActivityTime,
   importSave,
   loadSavedState,
-  saveState,
-  startHeartbeat,
+  saveState as persistState,
+  replaceSave,
 } from "./persistence.js";
 import { createUI } from "./ui.js";
 import { getNextDiscoveries } from "./progression.js";
-import { claimWindRift, registerActiveClick, setAttunement, updateActivePlay } from "./active-play.js";
 import { createAudioEngine } from "./audio.js";
-import { togglePendingAspect, unlockAspect as unlockRiftAspect } from "./rift-strategy.js";
 import {
-  abandonChallenge as abandonLongTermChallenge,
-  canBuyGenerator,
-  discoverGenerator,
   getActiveChallenge,
-  investInWork,
   reconcileLongTerm,
-  setProjectAllocation as setLongTermAllocation,
-  startChallenge as startLongTermChallenge,
 } from "./long-term.js";
+import { applyCommand, advanceSimulation, advanceTo } from "./core.js";
 
 const DISPLAY_INTERVAL_MS = 100;
 const AUTO_SAVE_SECONDS = 15;
 const PRESS_FEEDBACK_MS = 95;
 const LOGO_SRC = "assets/obsidian-winds-logo.png";
 
-const loaded = loadSavedState();
-let state = loaded.state;
+let loaded;
+let state = createFreshState();
+let writer = false;
+let lastSaveError = null;
 let lastTick = performance.now();
 let lastDisplayAt = 0;
 let autoSaveTimer = 0;
 let pressFeedbackTimer = null;
 let forceRender = true;
 let gameRandom = Math.random;
+let manualTestClock = false;
+let initialized = false;
 
 const ui = createUI(() => state, {
   buyGenerator,
@@ -83,21 +75,59 @@ const ui = createUI(() => state, {
   setProjectAllocation,
   startChallenge,
   abandonChallenge,
+  configureAutomation: (key, value) => { if (command("automation", { key, value }).ok) { saveState(); requestRender(true); } },
+  expansionCommand: (type, fields) => { if (command(type, fields).ok) { saveState(); requestRender(true); } },
   objectiveAdvanced: () => audio.objective(),
 });
 const audio = createAudioEngine(() => state);
 
-initialize();
+if (navigator.locks) {
+  navigator.locks.request("obsidian-clicker-writer", { ifAvailable: true }, async (lock) => {
+    writer = Boolean(lock);
+    initialize();
+    if (lock) await new Promise((resolve) => window.addEventListener("pagehide", () => { saveState(); writer = false; resolve(); }, { once: true }));
+  }).catch(() => { writer = false; initialize(); });
+} else initialize();
+
+window.addEventListener("storage", (event) => {
+  if (!writer && event.key === SAVE_KEY && event.newValue) {
+    try { state = importSave(event.newValue); requestRender(true); } catch { /* Keep the last readable snapshot. */ }
+  }
+});
+
+function command(type, fields = {}) {
+  if (!writer) return { ok: false };
+  return applyCommand(state, { type, ...fields }, { now: state.lastSimulatedAt || Date.now(), random: gameRandom });
+}
+
+function saveState() {
+  if (!writer) return { error: new Error("Read-only tab") };
+  const result = persistState(state);
+  lastSaveError = result.error?.message || null;
+  ui.setSaveStatus(lastSaveError ? `Not saved: ${lastSaveError}` : `Saved ${formatSaveTime(state.lastSavedAt)}`);
+  updateSessionNotice();
+  return result;
+}
+
+function updateSessionNotice() {
+  const notice = document.querySelector("#session-status");
+  notice.hidden = writer && !lastSaveError;
+  notice.textContent = !writer ? navigator.locks ? "Read-only tab. Close the other game tab and reload to play." : "This browser lacks safe multi-tab saving. Use a browser with Web Locks to play." : lastSaveError ? "Progress is not saved. Open Menu to export a backup or recover your save." : "";
+}
 
 function initialize() {
+  if (initialized) return;
+  initialized = true;
+  loaded = writer ? loadSavedState() : loadSavedState({ getItem: (key) => localStorage.getItem(key), setItem: () => {} });
+  state = loaded.state;
   const newestActivityAt = getNewestActivityTime(state);
-  if (loaded.error) addLog("The previous save could not be read. A fresh storm has begun.");
+  if (loaded.error) addLog(loaded.recovered ? "Backup recovered. Original save protected; export or import to keep this recovery." : "Original save protected. Progress is in memory until you explicitly import or reset.");
   if (loaded.migrated) addLog("Your earlier save was migrated to the current format.");
 
-  const offlineReport = applyOfflineProgress(newestActivityAt);
+  const offlineReport = writer ? applyOfflineProgress(newestActivityAt) : null;
+  state.lastSimulatedAt ||= Date.now();
   reconcileLongTerm(state);
-  saveState(state);
-  startHeartbeat();
+  saveState();
 
   ui.els.logoImg.src = LOGO_SRC;
   ui.els.logoImg.addEventListener("error", () => ui.els.logoButton.classList.add("logo-missing"));
@@ -109,24 +139,36 @@ function initialize() {
   document.querySelector("#export-save-btn").addEventListener("click", downloadSave);
   document.querySelector("#import-save-btn").addEventListener("click", () => document.querySelector("#import-save-input").click());
   document.querySelector("#import-save-input").addEventListener("change", handleImportFile);
+  const recoveryButton = document.querySelector("#recover-save-btn");
+  recoveryButton.hidden = !writer || !loaded.recovered;
+  recoveryButton.addEventListener("click", () => {
+    if (!writer || !window.confirm("Keep this recovered progress? The unreadable original will remain in the recovery slot.")) return;
+    const result = replaceSave(state);
+    if (result.error) { ui.setSaveStatus(`Recovery failed: ${result.error.message}`); return; }
+    lastSaveError = null;
+    recoveryButton.hidden = true;
+    saveState();
+  });
   document.querySelector("#offline-continue-btn").addEventListener("click", () => ui.els.offlineDialog.close());
   document.addEventListener("visibilitychange", handleVisibilityChange);
   document.addEventListener("keydown", handleGlobalKeydown);
-  window.addEventListener("pagehide", () => saveState(state));
-  window.addEventListener("beforeunload", () => saveState(state));
+  window.addEventListener("pointerdown", () => { if (writer) audio.syncMusic(); }, { once: true });
+  window.addEventListener("keydown", () => { if (writer) audio.syncMusic(); }, { once: true });
+  window.addEventListener("pagehide", () => saveState());
+  window.addEventListener("beforeunload", () => saveState());
 
   ui.render(true);
   ui.showOfflineReport(offlineReport);
-  ui.setSaveStatus(`Saved ${formatSaveTime(state.lastSavedAt)}`);
+  if (!writer) ui.setSaveStatus("Read-only: close the other game tab and reload to play.");
+  updateSessionNotice();
   requestAnimationFrame(tick);
   audio.syncMusic();
 }
 
 function handleLogoClick(event) {
-  state.totalClicks += 1;
-  const result = registerActiveClick(state, Date.now(), gameRandom);
-  const amount = getClickPower(state) * result.multiplier;
-  gainShards(amount);
+  const result = command("click");
+  if (!result.ok) return;
+  const amount = result.amount;
   ui.spawnFloat(amount, normalizedPointerEvent(event), result.critical);
   pulseLogo();
   if (result.critical) {
@@ -153,9 +195,9 @@ function pulseLogo() {
 }
 
 function tick(now) {
-  const deltaSeconds = Math.min(1, (now - lastTick) / 1000);
+  const deltaSeconds = Math.max(0, (now - lastTick) / 1000);
   lastTick = now;
-  update(deltaSeconds);
+  if (writer && !document.hidden && !manualTestClock) update(deltaSeconds);
 
   if (forceRender || now - lastDisplayAt >= DISPLAY_INTERVAL_MS) {
     ui.render(forceRender);
@@ -167,186 +209,150 @@ function tick(now) {
 }
 
 function update(deltaSeconds) {
-  const activeEvents = updateActivePlay(state, deltaSeconds, gameRandom);
+  const report = advanceTo(state, Date.now(), { random: gameRandom, offline: deltaSeconds > 5 });
+  const activeEvents = report?.events || [];
   if (activeEvents.includes("riftSpawned")) {
     addLog("A Wind Rift has opened near the sigil.");
     audio.rift();
   }
-  const rate = getPassiveRate(state);
-  if (rate > 0) {
-    const grossProduction = rate * deltaSeconds;
-    const projectBase = grossProduction * state.projectAllocation;
-    gainShards(grossProduction - projectBase);
-    investInWork(state, projectBase);
-    state.bestPassiveRate = Math.max(state.bestPassiveRate, rate);
-    state.peakRunPassiveRate = Math.max(state.peakRunPassiveRate, rate);
-  }
-  reconcileLongTerm(state);
-
   autoSaveTimer += deltaSeconds;
   if (autoSaveTimer >= AUTO_SAVE_SECONDS) {
     autoSaveTimer = 0;
-    saveState(state);
-    ui.setSaveStatus(`Autosaved ${formatSaveTime(state.lastSavedAt)}`);
+    saveState();
   }
 }
 
 function setProjectAllocation(value) {
-  setLongTermAllocation(state, Number(value));
-  saveState(state);
+  if (!command("allocation", { value: Number(value) }).ok) return;
+  saveState();
   requestRender(true);
 }
 
 function startChallenge(id) {
   const challenge = getActiveChallenge({ ...state, activeChallenge: id });
   if (!challenge || !window.confirm(`Begin ${challenge.name}? This resets current-run Shards, generators, and temporary upgrades.`)) return;
-  if (!startLongTermChallenge(state, id)) return;
-  saveState(state);
+  if (!command("startChallenge", { id }).ok) return;
+  saveState();
   requestRender(true);
 }
 
 function abandonChallenge() {
   if (!state.activeChallenge || !window.confirm("Abandon the current challenge? Current run progress will remain, but the restriction and reward attempt will end.")) return;
-  abandonLongTermChallenge(state);
-  saveState(state);
+  if (!command("abandonChallenge").ok) return;
+  saveState();
   requestRender(true);
 }
 
 function unlockAspect(id) {
-  if (!unlockRiftAspect(state, id)) return;
+  if (!command("unlockAspect", { id }).ok) return;
   addLog("A new Rift Aspect has been unlocked.");
   audio.purchase();
-  saveState(state);
+  saveState();
   requestRender(true);
 }
 
 function toggleAspect(id) {
-  if (!togglePendingAspect(state, id)) return;
-  saveState(state);
+  if (!command("toggleAspect", { id }).ok) return;
+  saveState();
   requestRender(true);
 }
 
 function handleWindRiftClaim() {
-  const result = claimWindRift(state, getPassiveRate(state), gameRandom);
-  if (!result) return;
-  if (result.bounty > 0) gainShards(result.bounty);
+  const result = command("claimWindRift");
+  if (!result.ok) return;
   addLog(`${result.definition.name}: ${result.definition.description}`);
   audio.rift();
-  saveState(state);
+  saveState();
   requestRender(true);
 }
 
 function updateSetting(key, value) {
+  if (!writer) return;
   if (!(key in state.settings)) return;
   state.settings[key] = Boolean(value);
   audio.syncMusic();
-  saveState(state);
+  saveState();
   requestRender(true);
 }
 
 function selectAttunement(id) {
-  setAttunement(state, id);
-  saveState(state);
+  if (!command("attunement", { id }).ok) return;
+  saveState();
   requestRender(true);
-}
-
-function gainShards(amount) {
-  if (!Number.isFinite(amount) || amount <= 0) return;
-  state.shards += amount;
-  state.runShards += amount;
-  state.lifetimeShards += amount;
 }
 
 function buyGenerator(id, mode) {
   const generator = GENERATORS.find((item) => item.id === id);
-  if (!generator || !canBuyGenerator(state, id)) return;
-  const amount = mode === "max" ? getAffordableGeneratorAmount(state, generator) : Number(mode);
-  const cost = getGeneratorBatchCost(state, generator, amount);
-  if (!Number.isFinite(cost) || amount <= 0 || cost > state.shards) return;
-
-  state.shards -= cost;
-  state.generatorCounts[id] = getOwned(state, id) + amount;
-  discoverGenerator(state, generator);
+  const result = command("buyGenerator", { id, amount: mode });
+  if (!result.ok) return;
+  const { amount } = result;
   addLog(`Bought ${formatNumber(amount)} ${generator.name}${amount === 1 ? "" : "s"}.`);
   ui.announce(`${generator.name} purchased. Owned ${formatNumber(state.generatorCounts[id])}.`);
   audio.purchase();
-  saveState(state);
+  saveState();
   requestRender(true);
 }
 
 function buyUpgrade(id) {
   const upgrade = UPGRADES.find((item) => item.id === id);
-  if (!upgrade || state.purchasedUpgrades.includes(id)) return;
-  const modifiers = deriveModifiers(state);
-  if (!isUpgradeUnlocked(state, upgrade, modifiers) || state.shards < upgrade.cost) return;
-
-  state.shards -= upgrade.cost;
-  state.purchasedUpgrades.push(id);
-  reconcileLongTerm(state);
+  if (!command("buyUpgrade", { id }).ok) return;
   addLog(`Upgraded: ${upgrade.name}.`);
   ui.announce(`${upgrade.name} purchased.`);
   audio.purchase();
-  saveState(state);
+  saveState();
   requestRender(true);
 }
 
 function buyRiftwork(id) {
   const upgrade = RIFTWORK.find((item) => item.id === id);
-  if (!upgrade || state.purchasedRiftwork.includes(id) || state.echoes < upgrade.cost) return;
-  state.echoes -= upgrade.cost;
-  state.purchasedRiftwork.push(id);
+  if (!command("buyRiftwork", { id }).ok) return;
   addLog(`Riftwork etched: ${upgrade.name}.`);
   ui.announce(`${upgrade.name} etched into permanent Riftwork.`);
   audio.purchase();
-  saveState(state);
+  saveState();
   requestRender(true);
 }
 
 function enterRift() {
   const echoesGained = getAvailableEchoes(state);
-  if (echoesGained <= 0) return;
+  if (echoesGained <= 0 || state.activeChallenge || !writer) return;
   const message = `Enter the Rift? This will dissolve your current Shards, generators, and temporary upgrades into ${formatNumber(echoesGained)} Echo${echoesGained === 1 ? "" : "es"}.`;
   if (!window.confirm(message)) return;
-  state = createRiftState(state, echoesGained);
+  if (!command("rift").ok) return;
   ui.announce(`Rift entered. ${formatNumber(echoesGained)} Echoes gathered.`);
   audio.prestige();
-  saveState(state);
+  saveState();
   requestRender(true);
 }
 
 function applyOfflineProgress(activityAt) {
   if (!Number.isFinite(activityAt) || activityAt <= 0) return null;
-  const elapsedSeconds = Math.floor(Math.max(0, (Date.now() - activityAt) / 1000));
-  if (elapsedSeconds < MIN_OFFLINE_SECONDS) return null;
-  const report = getOfflineProgress(state, elapsedSeconds);
+  const report = advanceTo(state, Date.now(), { offline: true, random: gameRandom });
+  if (!report) return null;
   const { creditedSeconds, rate, gain } = report;
-  state.lastOfflineSeconds = elapsedSeconds;
-  state.lastOfflineCreditedSeconds = creditedSeconds;
-  state.lastOfflineShards = gain;
   if (gain > 0) {
-    gainShards(gain);
-    investInWork(state, report.projectBase);
     state.bestPassiveRate = Math.max(state.bestPassiveRate, rate);
     addLog(`The storm gathered ${formatNumber(gain)} Shards over ${formatDuration(creditedSeconds)}.`);
   }
-  return report;
+  return report.elapsedSeconds >= MIN_OFFLINE_SECONDS ? report : null;
 }
 
 function handleVisibilityChange() {
+  if (!writer) return;
   if (document.hidden) {
-    saveState(state);
+    advanceTo(state, Date.now(), { random: gameRandom, offline: Date.now() - state.lastSimulatedAt > 5000 });
+    saveState();
     return;
   }
-  const report = applyOfflineProgress(Date.parse(state.lastSavedAt || ""));
-  saveState(state);
+  const report = applyOfflineProgress(state.lastSimulatedAt);
+  lastTick = performance.now();
+  saveState();
   ui.showOfflineReport(report);
   requestRender(true);
 }
 
 function manualSave() {
-  addLog("Progress saved.");
-  saveState(state);
-  ui.setSaveStatus(`Saved ${formatSaveTime(state.lastSavedAt)}`);
+  if (!saveState().error) addLog("Progress saved.");
 }
 
 function handleGlobalKeydown(event) {
@@ -384,15 +390,24 @@ function downloadSave() {
 }
 
 async function handleImportFile(event) {
+  if (!writer) return;
   const [file] = event.target.files;
   event.target.value = "";
   if (!file) return;
   try {
+    if (file.size > 2_000_000) throw new Error("Save too large");
     const imported = importSave(await file.text());
     if (!window.confirm("Import this save and replace the current local progress?")) return;
+    imported.lastSimulatedAt = Date.now();
+    const result = replaceSave(imported);
+    if (result.error) throw result.error;
     state = imported;
+    lastSaveError = null;
+    manualTestClock = false;
+    document.querySelector("#recover-save-btn").hidden = true;
+    updateSessionNotice();
     addLog("Imported progress loaded.");
-    saveState(state);
+    audio.syncMusic();
     ui.setSaveStatus("Imported and saved");
     requestRender(true);
   } catch (error) {
@@ -401,10 +416,18 @@ async function handleImportFile(event) {
 }
 
 function resetGame() {
+  if (!writer) return;
   if (!window.confirm("Reset all Obsidian Clicker progress? This also clears Echoes, Resonance, and Riftwork.")) return;
-  state = createFreshState();
-  localStorage.removeItem(HEARTBEAT_KEY);
-  saveState(state);
+  const fresh = createFreshState();
+  fresh.lastSimulatedAt = Date.now();
+  const result = replaceSave(fresh);
+  if (result.error) { ui.setSaveStatus(`Reset failed: ${result.error.message}`); return; }
+  state = fresh;
+  lastSaveError = null;
+  manualTestClock = false;
+  document.querySelector("#recover-save-btn").hidden = true;
+  updateSessionNotice();
+  audio.syncMusic();
   addLog("Progress reset.");
   ui.setSaveStatus("Progress reset");
   requestRender(true);
@@ -429,7 +452,7 @@ function renderGameToText() {
   const passiveRate = getPassiveRate(state, modifiers);
   return JSON.stringify({
     coordinateSystem: "DOM layout; click target is #logo-button; origin top-left, x right, y down.",
-    saveVersion: 6,
+    saveVersion: SAVE_VERSION,
     shards: Number(state.shards.toFixed(2)),
     lifetimeShards: Number(state.lifetimeShards.toFixed(2)),
     totalClicks: state.totalClicks,
@@ -455,6 +478,13 @@ function renderGameToText() {
     completedChallenges: [...state.completedChallenges],
     chronicleEntries: state.chronicleEntries.map((entry) => ({ ...entry })),
     campaignComplete: state.campaignComplete,
+    chapters: { one: state.campaignComplete, two: state.chapterTwoComplete, three: state.chapterThreeComplete },
+    mastery: state.mastery,
+    masteryTokens: state.masteryTokens,
+    extendedWorks: state.extendedWorks,
+    expeditions: { completed: state.expeditionsCompleted, materials: state.expeditionMaterials, active: state.activeExpedition ? { type: state.activeExpedition.type, tier: state.activeExpedition.tier, shards: state.activeExpedition.state.runShards, seconds: state.activeExpedition.seconds } : null, records: state.expeditionRecords },
+    automation: state.automation,
+    pinnedObjective: state.pinnedObjective,
     echoes: state.echoes,
     totalEchoesEarned: state.totalEchoesEarned,
     resonance: state.resonance,
@@ -485,7 +515,9 @@ function renderGameToText() {
     })),
     availableUpgrades: getVisibleUpgrades(state, modifiers).map((upgrade) => ({ id: upgrade.id, name: upgrade.name, cost: upgrade.cost, affordable: state.shards >= upgrade.cost })),
     purchasedUpgrades: [...state.purchasedUpgrades],
-    saved: Boolean(localStorage.getItem(SAVE_KEY)),
+    saved: Boolean(state.lastSavedAt) && !lastSaveError,
+    saveError: lastSaveError,
+    readOnly: !writer,
     acclaim: getAcclaimCount(state),
     acclaimMultiplier: getAcclaimMultiplier(state),
     globalMultiplier: modifiers.globalMultiplier,
@@ -505,16 +537,20 @@ function renderGameToText() {
 
 window.render_game_to_text = renderGameToText;
 window.advanceTime = (ms) => {
-  const steps = Math.max(1, Math.round(ms / (1000 / 60)));
-  for (let index = 0; index < steps; index += 1) update(1 / 60);
+  if (!writer) return;
+  advanceSimulation(state, ms, { random: gameRandom });
+  if (ms > 0) manualTestClock = true;
   ui.render(true);
 };
 window.force_wind_rift = (type = "clickSurge") => {
+  if (!writer) return;
   state.activeWindRift = { type, seconds: 12 };
   state.nextWindRiftIn = 60;
   requestRender(true);
 };
 window.set_game_random = (value) => {
+  if (!Number.isFinite(Number(value))) throw new RangeError("Random value must be finite");
   const fixed = Math.max(0, Math.min(1, Number(value)));
   gameRandom = () => fixed;
 };
+window.addEventListener("pageshow", (event) => { if (event.persisted) location.reload(); });

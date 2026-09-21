@@ -90,10 +90,11 @@ export function registerActiveClick(state, now = Date.now(), random = Math.rando
 
 export function updateActivePlay(state, deltaSeconds, random = Math.random) {
   const events = [];
+  const decaySeconds = Math.max(0, deltaSeconds - state.momentumGraceSeconds);
   state.momentumGraceSeconds = Math.max(0, state.momentumGraceSeconds - deltaSeconds);
   if (state.momentumGraceSeconds <= 0 && state.momentum > 0) {
     const decay = state.attunement === "idle" ? 2 : 4;
-    state.momentum = Math.max(0, state.momentum - decay * deltaSeconds);
+    state.momentum = Math.max(0, state.momentum - decay * decaySeconds);
   }
 
   state.clickSurgeSeconds = Math.max(0, state.clickSurgeSeconds - deltaSeconds);

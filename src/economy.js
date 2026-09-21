@@ -21,8 +21,11 @@ import {
   getWorkOfflineMultiplier,
   getWorkProductionMultiplier,
   recordRiftDiscovery,
+  reconcileLongTerm,
   sanitizeLongTermState,
 } from "./long-term.js";
+import { FIRST_RUN_OBJECTIVES, reconcileObjectives } from "./identity.js";
+import { createExpansionState, sanitizeExpansion, getMasteryMultiplier, getExpeditionMultiplier, EXPEDITION_TYPES, MAX_EXPEDITION_TIER } from "./expansion.js";
 
 const generatorIds = new Set(GENERATORS.map((generator) => generator.id));
 const upgradeById = new Map(UPGRADES.map((upgrade) => [upgrade.id, upgrade]));
@@ -33,6 +36,7 @@ export function createFreshState() {
     ...createActiveState(),
     ...createRiftStrategyState(),
     ...createLongTermState(),
+    ...createExpansionState(),
     shards: 0,
     runShards: 0,
     runStartedAt: new Date().toISOString(),
@@ -54,10 +58,17 @@ export function createFreshState() {
     lastOfflineCreditedSeconds: 0,
     log: ["The first Shards wait in the wind."],
     lastSavedAt: null,
+    lastSimulatedAt: 0,
+    expeditionMode: false,
+    completedObjectives: [],
+    rememberedUpgrades: [],
+    automation: { generators: false, upgrades: false, work: false, reserve: 0, target: "efficient" },
+    automationCountdown: 15,
   };
 }
 
-export function sanitizeState(raw = {}) {
+export function sanitizeState(raw = {}, expedition = false) {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) raw = {};
   const fresh = createFreshState();
   const state = { ...fresh };
   const numberFields = [
@@ -76,6 +87,7 @@ export function sanitizeState(raw = {}) {
     "lastOfflineShards",
     "lastOfflineSeconds",
     "lastOfflineCreditedSeconds",
+    "lastSimulatedAt",
   ];
 
   for (const field of numberFields) {
@@ -86,12 +98,23 @@ export function sanitizeState(raw = {}) {
   if (raw.generatorCounts && typeof raw.generatorCounts === "object") {
     for (const [id, count] of Object.entries(raw.generatorCounts)) {
       if (generatorIds.has(id) && Number.isFinite(count) && count >= 0) {
-        state.generatorCounts[id] = Math.floor(count);
+        state.generatorCounts[id] = Math.min(100000, Math.floor(count));
       }
     }
   }
 
   state.purchasedUpgrades = uniqueKnownIds(raw.purchasedUpgrades, upgradeById);
+  state.rememberedUpgrades = [...new Set([...uniqueKnownIds(raw.rememberedUpgrades, upgradeById), ...state.purchasedUpgrades])];
+  if (raw.automation && typeof raw.automation === "object") {
+    state.automation = {
+      generators: raw.automation.generators === true,
+      upgrades: raw.automation.upgrades === true,
+      work: raw.automation.work === true,
+      reserve: Number.isFinite(raw.automation.reserve) ? Math.max(0, raw.automation.reserve) : 0,
+      target: generatorIds.has(raw.automation.target) ? raw.automation.target : "efficient",
+    };
+  }
+  state.automationCountdown = Number.isFinite(raw.automationCountdown) ? Math.max(0, Math.min(15, raw.automationCountdown)) : 15;
   state.purchasedRiftwork = uniqueKnownIds(raw.purchasedRiftwork, riftworkIds);
   state.log = Array.isArray(raw.log)
     ? raw.log.filter((entry) => typeof entry === "string").slice(-20)
@@ -107,6 +130,22 @@ export function sanitizeState(raw = {}) {
   sanitizeActiveState(raw, state);
   sanitizeRiftStrategyState(raw, state);
   sanitizeLongTermState(raw, state);
+  sanitizeExpansion(raw, state);
+  state.resonance = Math.min(state.resonance, 1e100);
+  state.totalEchoesEarned = Math.min(state.totalEchoesEarned, 1e100);
+  state.lastSimulatedAt = Math.min(state.lastSimulatedAt, Date.now());
+  state.expeditionMode = expedition;
+  const savedExpedition = raw.activeExpedition;
+  if (!expedition && savedExpedition && EXPEDITION_TYPES.some((type) => type.id === savedExpedition.type) && savedExpedition.state && typeof savedExpedition.state === "object") {
+    const tier = Number.isFinite(savedExpedition.tier) ? Math.max(0, Math.min(MAX_EXPEDITION_TIER, Math.floor(savedExpedition.tier))) : 0;
+    state.activeExpedition = { type: savedExpedition.type, tier, seconds: Number.isFinite(savedExpedition.seconds) ? Math.max(0, savedExpedition.seconds) : 0, state: sanitizeState(savedExpedition.state, true) };
+    state.activeExpedition.state.activeChallenge = savedExpedition.type;
+    if (!getTotalGeneratorsOwned(state.activeExpedition.state)) state.activeExpedition.state.generatorCounts.whisperer = 1;
+  }
+  state.completedObjectives = uniqueKnownIds(raw.completedObjectives, new Set(FIRST_RUN_OBJECTIVES.map((item) => item.id)));
+  reconcileLongTerm(state);
+  reconcileObjectives(state, getPassiveRate(state));
+  if (state.activeChallenge === "quietStorm" && getTotalGeneratorsOwned(state) === 0) state.generatorCounts.whisperer = 1;
 
   return state;
 }
@@ -127,6 +166,7 @@ export function getTotalGeneratorsOwned(state) {
 export function getAcclaimCount(state) {
   const totalGenerators = getTotalGeneratorsOwned(state);
   return ACCLAIM_MILESTONES.filter((milestone) => {
+    if (state.achievementDates[milestone.id]) return true;
     if (milestone.type === "totalGenerators") return totalGenerators >= milestone.amount;
     if (milestone.type === "purchasedUpgrades") return state.purchasedUpgrades.length >= milestone.amount;
     if (milestone.type === "purchasedRiftwork") return state.purchasedRiftwork.length >= milestone.amount;
@@ -151,6 +191,12 @@ export function deriveModifiers(state) {
     if (effect.type === "generatorMultiplier" && generatorIds.has(effect.generatorId)) {
       modifiers.generatorMultipliers[effect.generatorId] *= effect.value;
     }
+  }
+
+  const chorus = Object.values(state.mastery || {}).reduce((total, item) => total + (item.specialization === "chorus" ? item.rank * 0.01 : 0), 0);
+  for (const generator of GENERATORS) {
+    const mastery = state.mastery?.[generator.id];
+    modifiers.generatorMultipliers[generator.id] *= 1 + chorus + (mastery?.specialization === "focus" ? mastery.rank * 0.1 : -(mastery?.rank || 0) * 0.01);
   }
 
   return modifiers;
@@ -186,6 +232,7 @@ export function getAllProductionMultiplier(state, modifiers = deriveModifiers(st
   multiplier *= getAchievementProductionMultiplier(state);
   multiplier *= getWorkProductionMultiplier(state);
   multiplier *= getChallengeProductionMultiplier(state);
+  multiplier *= getExpeditionMultiplier(state);
   return multiplier;
 }
 
@@ -219,10 +266,10 @@ export function getGeneratorContribution(state, generator, modifiers = deriveMod
 }
 
 export function getPassiveRate(state, modifiers = deriveModifiers(state), includeTemporaryEffects = true) {
-  return GENERATORS.reduce(
-    (total, generator) => total + getGeneratorContribution(state, generator, modifiers, includeTemporaryEffects),
-    0,
-  );
+  const base = GENERATORS.reduce((total, generator) => total + getOwned(state, generator.id) * generator.baseRate * modifiers.generatorMultipliers[generator.id], 0);
+  return base * getProductionMultiplier(state, modifiers) * getGeneratorRiftworkMultiplier(state)
+    * getAttunement(state).passiveMultiplier * (hasAspect(state, "deepReservoir") ? 1.2 : 1)
+    * (includeTemporaryEffects && state.productionSurgeSeconds > 0 ? 2 : 1);
 }
 
 export function getOfflineProgress(state, elapsedSeconds) {
@@ -270,7 +317,7 @@ export function getGeneratorUnitCost(state, generator, offset = 0) {
 }
 
 export function getGeneratorBatchCost(state, generator, amount) {
-  if (!Number.isFinite(amount) || amount <= 0) return Infinity;
+  if (!Number.isSafeInteger(amount) || amount <= 0 || amount > 100000) return Infinity;
   let total = 0;
   for (let offset = 0; offset < amount; offset += 1) {
     total += getGeneratorUnitCost(state, generator, offset);
@@ -323,13 +370,23 @@ export function getShardsForResonance(level) {
   return Math.pow(level, 3) * RIFT_BASE_SHARDS;
 }
 
-export function createRiftState(state, echoesGained) {
+export function createRiftState(original, echoesGained, now = Date.now()) {
+  const state = structuredClone(original);
+  reconcileLongTerm(state, now);
+  reconcileObjectives(state, getPassiveRate(state));
   const fresh = createFreshState();
+  for (const entry of Object.values(state.mastery)) entry.specialization = entry.pending;
   const totalEchoesEarned = state.totalEchoesEarned + echoesGained;
-  const runSeconds = Math.max(0, Math.floor((Date.now() - Date.parse(state.runStartedAt || "")) / 1000)) || 0;
+  const runSeconds = Math.max(0, Math.floor((now - Date.parse(state.runStartedAt || "")) / 1000)) || 0;
   recordRiftDiscovery(state, echoesGained);
   return {
     ...fresh,
+    ...Object.fromEntries(Object.keys(createExpansionState()).map((key) => [key, structuredClone(state[key])])),
+    runStartedAt: new Date(now).toISOString(),
+    lastSimulatedAt: state.lastSimulatedAt,
+    completedObjectives: [...state.completedObjectives],
+    rememberedUpgrades: [...new Set([...state.rememberedUpgrades, ...state.purchasedUpgrades])],
+    automation: { ...state.automation },
     lifetimeShards: state.lifetimeShards,
     totalClicks: state.totalClicks,
     criticalGusts: state.criticalGusts,
@@ -365,7 +422,7 @@ export function createRiftState(state, echoesGained) {
     activeAspects: [...state.pendingAspects],
     pendingAspects: [...state.pendingAspects],
     runHistory: [...state.runHistory, {
-      enteredAt: new Date().toISOString(),
+      enteredAt: new Date(now).toISOString(),
       durationSeconds: runSeconds,
       runShards: state.runShards,
       peakPassiveRate: state.peakRunPassiveRate,
@@ -379,10 +436,12 @@ export function createRiftState(state, echoesGained) {
 }
 
 export function formatNumber(value) {
-  if (!Number.isFinite(value)) return "0";
+  if (!Number.isFinite(value)) return value === Infinity ? "Limit" : "Unavailable";
+  if (Math.abs(value) >= 1e63) return value.toExponential(2).replace("e+", "e");
   const abs = Math.abs(value);
   const sign = value < 0 ? "-" : "";
   if (abs < 1000) return `${sign}${trimNumber(abs)}`;
+  /** @type {Array<[number, string]>} */
   const units = [
     [1e60, "N"], [1e57, "OcD"], [1e54, "SpD"], [1e51, "SxD"], [1e48, "QiD"],
     [1e45, "QaD"], [1e42, "TD"], [1e39, "DD"], [1e36, "U"], [1e33, "Dc"],
@@ -401,6 +460,8 @@ function trimNumber(value) {
 
 export function formatPercent(value) {
   if (!Number.isFinite(value)) return "0%";
+  if (value >= 1000) return `${formatNumber(value)}%`;
+  if (value > 100) return `${value.toFixed(1).replace(/\.0$/, "")}%`;
   if (value >= 99.95) return "100%";
   if (value >= 10) return `${value.toFixed(1).replace(/\.0$/, "")}%`;
   if (value > 0) return `${value.toFixed(2).replace(/\.?0+$/, "")}%`;

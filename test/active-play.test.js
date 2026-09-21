@@ -38,7 +38,7 @@ test("Momentum waits through grace, then decays deterministically", () => {
   updateActivePlay(state, 0.5, () => 1);
   assert.equal(state.momentum, 50);
   updateActivePlay(state, 1, () => 1);
-  assert.equal(state.momentum, 46);
+  assert.equal(state.momentum, 48);
 });
 
 test("Wind Rifts spawn, expire, and grant each reward type", () => {
