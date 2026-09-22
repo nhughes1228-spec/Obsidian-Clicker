@@ -1,5 +1,28 @@
 Original prompt: Generate a cookie-clicker clone using the Obsidian Winds logo as the big cookie. We can figure out what all the other parts of the game will be called but for now let's focus on building the game itself.
 
+Publication (2026-09-21):
+- User explicitly authorized GitHub push and updating clicker.obsidianwinds.org.
+- Confirmed the custom domain is served by the existing Cloudflare Worker with GitHub main build integration; GitHub Pages is a separate destination.
+- Added asset build on npm prepare, Pages publication on main pushes, and a public release manifest containing only revision/edition/save version. No domain or save-origin change.
+
+Workshop feedback follow-up:
+- Removed the unnecessary flavor caption below the logo, retaining the visible introductory goal and progress bar.
+- User approved a separate goal currency: Upgrade Parts, not additional Research Points.
+- Added three persistent goal tracks (lifetime production, best output, best equipment ownership), 72 fixed goals, explicit one-time claims, and eight equipment modifications with five permanent levels each. Goal rewards total 1116 Parts; purchasing every level costs 960 Parts. No random drops, extra modes, or reset farming.
+- Output modifications add 10% per level (50% cap); Pump and Well modifications reduce their own equipment prices by 3% per level (15% cap). Bonuses stack with ordinary upgrades and research through the shared core.
+- Save version 2 migrates version 1 at the same key/origin, retains the original in recovery, validates Parts accounting and ownership records, and leaves Classic untouched.
+- Fresh-save simulations now legally claim goals and purchase modifications. Goal spending changes purchasing decisions and makes optimized saving faster than the old 3-day Research minimum. The old 3-7-day target remains an explicit diagnostic, not a claim; upper-bound/reachability and early-game gates remain enforced. Base prices and Research accounting are unchanged.
+- Added goal/modification command, migration, accounting, bounded-effect, offline, keyboard, rebuild/reload, and six-width browser coverage. Final verification results recorded in IMPLEMENTATION.md and BALANCE_REPORT.md.
+- Follow-up: playtest goal cadence and allocation choices with real players; research completion is not all goal/modification completion, and the simulator currently stops at the former.
+
+Workshop redesign (2026-09-21, current work):
+- Preserved the complete previous edition in classic/ with its original save key and isolated assets. Older phase notes below describe Classic, not the new Workshop edition.
+- Replaced the root game with eight producers, 45 ordinary upgrades, six permanent research purchases, deterministic clicks, and two currencies. No Momentum, side modes, timed events, loadouts, or extra material currencies are imported by the new game.
+- Added independent Workshop save/recovery keys and writer lock, explicit cross-edition import rejection, a 24-hour offline cap, and a shared command/simulation core.
+- Final checks pass: 82 unit tests (17 Workshop, 65 preserved Classic), 29 Chromium browser tests, shared-core JavaScript checks and 600 fresh-save progression simulations. Three five-minute visits daily complete Research in 3-4.33 modeled days; continuous schedules complete in 12.17-21.01 hours.
+- Visually inspected desktop/mobile Production and Research screens and the develop-web-game client screenshots. Fixed early failed-image fallback, kept keyboard focus when upgrades move into the collapsed installed collection, and verified both editions under the dist/ subpath.
+- Final results and assumptions are in BALANCE_REPORT.md; architecture, save separation and release instructions are in IMPLEMENTATION.md. Preview: http://127.0.0.1:5174/ and /classic/. No push or deployment. Remaining manual checks: real Safari/Firefox, device audio and browser UI zoom.
+
 Reliability and expansion implementation (2026-09-20):
 - Preserved the previously uncommitted modular build in commit 0b36d17 before edits.
 - Implemented save v7 recovery/backup protection, explicit import/reset replacement, plain-text Chronicle rendering, challenge bootstrapping, gross-income construction accounting, permanent Acclaim/objectives, and corrected Rift comparison/reset reuse.

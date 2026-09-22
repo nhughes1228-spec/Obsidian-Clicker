@@ -22,4 +22,5 @@ jobs:
           name: browser-evidence
           path: |
             output/reliability/
+            output/workshop/
             test-results/

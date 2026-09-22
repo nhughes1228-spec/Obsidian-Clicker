@@ -3,14 +3,15 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test test/*.test.js",
+    "prepare": "npm run build",
+    "test": "node --test test/*.test.js classic/test/*.test.js",
     "test:browser": "playwright test",
     "build": "node tools/build.mjs",
     "check": "tsc -p jsconfig.json",
-    "simulate:campaign": "node tools/simulate-campaign.mjs",
+    "simulate:campaign": "node tools/simulate-workshop.mjs",
     "start": "node tools/serve.mjs",
-    "simulate": "node tools/simulate-campaign.mjs 1 90",
-    "simulate:legacy": "node tools/simulate-active.mjs && node tools/simulate-builds.mjs && node tools/simulate-project.mjs"
+    "simulate": "node tools/simulate-workshop.mjs 1",
+    "simulate:legacy": "node classic/tools/simulate-campaign.mjs 1 90"
   },
   "devDependencies": {
     "@playwright/test": "1.58.2",

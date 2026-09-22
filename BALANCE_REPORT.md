@@ -1,71 +1,114 @@
-# Campaign Balance Report
+# Workshop Progression Report
 
-Verified September 21, 2026. Command: `npm run simulate:campaign -- 100 90`.
-All 300 fresh-save campaigns passed the finite-number, first-Rift, campaign
-completion, repeatable-endgame and alternative-activity gates.
+## Current: Goal Rewards And Modifications
+
+September 21, 2026: 600 fresh saves, three policies x two schedules x 100 seeds.
+The shared-core simulator now claims every completed active goal and buys an
+affordable modification each decision. Greedy/saving favor equipment contributing
+the most current output; inexpensive favors the lowest Parts cost. This is a
+simple allocation policy, not an exhaustive optimizer. All purchases use commands.
+
+| Short-visit policy | First goal + modification | First rebuild | Research complete | Modification levels bought at Research completion |
+| --- | --- | --- | --- | --- |
+| Greedy | 20-25 seconds | 16 hours | 3-4 days | 23 |
+| Saving | 20-25 seconds | 16 hours | 1.67-2 days | 22-24 |
+| Inexpensive | 20-30 seconds | 24 hours | 3.67 days | 27 |
+
+All producers and Research are reached in every run. First ordinary upgrades
+arrive in 45-120 seconds for short visits. Longest sampled affordability wait
+for any ordinary purchase remains at most 180 seconds; a specific goal can take
+much longer. Continuous Research completion is 15.17-15.33 hours (greedy),
+9.42-9.58 hours (saving), and 16.42-16.50 hours (inexpensive).
+
+**Pacing tradeoff:** optimized saving now beats the previous 3-7-day target.
+Goal investments change purchasing paths as well as rates, so duration is not
+proportional to bonus size. Base prices and Research accounting remain unchanged;
+new rewards are not canceled by inflating existing costs. The seven-day ceiling,
+early-game timing and completion gates remain enforced. The original 3-7-day
+target remains explicitly reported as `originalThreeToSevenDayTarget: false`.
+This is a changed pacing outcome, not proof that the original minimum passed.
+
+There are 72 fixed goals awarding 1116 Parts; all 40 modification levels cost 960.
+Output bonuses cap at +50% and price reductions at 15%, per affected producer.
+Research completion is **not** completion of all goals or modifications. The
+simulation stops at Research plus all eight producers; it does not establish the
+time needed for the final goals. Tests verify complete reward funding and rank
+caps, not a legal full-goal campaign. Late-goal cadence needs actual playtesting.
+
+Results live in `output/workshop/progression.json`; the report includes first
+claims/modifications, claimed goal totals, modification level totals and the
+previous timing fields. UI tests additionally cover claim -> spend -> rebuild ->
+reload and ensure modifications and claimed goals remain permanent.
+
+## Baseline Before Goal Rewards
+
+The following measurements are historical, before the new reward system.
+Verified September 21, 2026 using the earlier `npm run simulate:campaign -- 100`.
+All 600 fresh-save runs pass the early-purchase, early-upgrade, first-rebuild,
+complete-producer-range and Research completion gates. Previous campaign results
+belong to Classic and are preserved in `classic/BALANCE_REPORT.md`.
 
 ## Model
 
-Each of three purchasing policies ran seeds 1-100 for 90 days, with three
-five-minute visits daily, eight hours apart. Every purchase, Rift, challenge,
-Work and expedition uses legal commands. No completion totals are seeded.
-Clicks occur once per second before the first Rift and once per ten seconds
-afterward. Inexperienced shopping limits manual purchases and misses half the
-events. Higher-level objective selection is shared across policies.
+Three shopping policies, each with 100 deterministic input seeds, run under two
+schedules. Short visits are three five-minute sessions per day, eight hours apart.
+Continuous play makes decisions throughout elapsed time. Before the first rebuild,
+each five-second step supplies 3-5 legal clicks; afterward it supplies 0-1.
 
-## Unlocks
+Greedy buys the best affordable payback; saving waits for the best payback;
+inexpensive buys the cheapest option and skips 15% of shopping decisions. Up to
+eight sequential legal purchases occur per decision. Research is bought in catalog
+order, with rebuilds when the next purchase can be funded. Automation is enabled
+when purchased. No balances, producer ownership or completion totals are seeded.
 
-| Policy | First generator | First upgrade | First Rift | Chapter One | Chapter Two | Chapter Three |
-| --- | --- | --- | --- | --- | --- | --- |
-| Greedy | 5-10 sec | 40-175 sec | 16-24 hr | 3.33-4 days | 6.33-6.67 days | 34.67-35 days |
-| Inexperienced | 5-10 sec | 90-180 sec | 24 hr | 3.33 days | 6.67 days | 35 days |
-| Lookahead | 5-10 sec | 30-70 sec | 16 hr | 4-5.01 days | 6-6.33 days | 34.33-34.67 days |
+This model tests different shopping behavior, not every research order or click
+speed. Decision resolution is five seconds. Offline unlocks are observed at the
+next visit, not reported as exact timestamps within an absence.
 
-Observed later Rift intervals were 8-16 hours. Each required challenge was
-complete by the next visit (8 hours after starting); this is an observation
-interval, not a claim that completion took exactly eight hours. The final
-chapter, not the preserved Chapter One capstone, is the 30-90-day target.
+## Short Visits
 
-## 30/60/90-Day Snapshots
+| Policy | First producer | First upgrade | First rebuild | All research | Final producer first purchased |
+| --- | --- | --- | --- | --- | --- |
+| Greedy | 20-25 sec | 60-115 sec | 24 hr | 3.33 days | 72.01 hr |
+| Saving | 20-25 sec | 45-55 sec | 16 hr | 3-3.33 days | 32.06-56.09 hr |
+| Inexpensive | 20-30 sec | 95-125 sec | 24 hr | 4-4.33 days | 96 hr |
 
-Ranges span all 100 seeds for each policy. Waits are the largest snapshot
-estimate for the next purchase using current income, not a forecast of all
-future bonuses. Snapshots are taken during the third visit on each stated day.
+These results meet the several-day target without inserting cooldowns or required
+idle waits. The longest sampled wait to afford *any* purchase was three minutes.
+Waiting for a particular expensive upgrade can take longer, especially under the
+saving policy. Long gaps between manual purchases also include time between visits
+and automatic buying; they are not claims that production stopped.
 
-| Day | Policy | Mastery ranks / 80 | Expeditions completed | Maximum purchase wait |
-| --- | --- | --- | --- | --- |
-| 30 | Greedy | 68-70 | 84-85 | 1.86 hr |
-| 30 | Inexperienced | 68-70 | 84 | 1.77 hr |
-| 30 | Lookahead | 66-68 | 85-86 | 1.01 hr |
-| 60 | Greedy | 77 | 174-175 | 3.99 hr |
-| 60 | Inexperienced | 77 | 174 | 3.71 hr |
-| 60 | Lookahead | 73-77 | 175-176 | 3.41 hr |
-| 90 | Greedy | 79-80 | 264-265 | 4.92 hr |
-| 90 | Inexperienced | 79-80 | 264 | 4.64 hr |
-| 90 | Lookahead | 78-79 | 265-266 | 0.11 hr |
+## Producer Discovery
 
-All runs had completed Chapters One and Two at day 30, and Chapter Three by
-day 60. Main production, optional Rifts, mastery where incomplete and independent
-expeditions provide alternatives. Tier-zero contracts remain available without
-refresh currency, streaks or timed-event requirements.
+Ranges across all 300 short-visit runs, in hours from a fresh save. Discovery means
+the purchase prerequisite was met, not that the player immediately bought it.
 
-## Interpretation And Remaining Work
+| Producer | Discovery observed | First purchase |
+| --- | --- | --- |
+| Casting Tray | Available immediately | 0.006-0.009 hr |
+| Cooling Rack | 0.017-0.032 hr | 0.021-0.073 hr |
+| Cooling Pump | 0.053-8 hr | 0.079-8.013 hr |
+| Furnace | 8 hr | 8.002-16.005 hr |
+| Casting Line | 8-8.031 hr | 8.007-16.021 hr |
+| Obsidian Foundry | 8-16 hr | 8.003-48.014 hr |
+| Magma Well | 16 hr | 16.012-80.024 hr |
+| Volcano Forge | 16-24 hr | 32.052-96 hr |
 
-- The longest gaps between *manual purchases* ranged up to 376 hours for greedy,
-  368 for inexperienced and 600 for lookahead. Automated purchases continue
-  during these gaps; they are not mandatory idle waits. Nevertheless, shopping
-  becomes less central, making expedition and mastery decisions important.
-- These policies demonstrate reachable campaigns, not that every build,
-  arbitrary spending choice or missed-visit schedule is safe or enjoyable.
-  Playtesting should measure decision variety and test alternative loadouts.
-- Most mastery is earned by day 90. Repeatable contracts, tier records and
-  cosmetic titles remain, but this is not infinite handcrafted content.
-  Expedition power is capped and difficulty stops at tier 500; arbitrary-
-  precision scaling is required before increasing that ceiling.
-- The full machine-readable report is generated at
-  `output/reliability/campaign-report.json`. It includes each seed's unlocks,
-  reset intervals, challenge observations and snapshot alternatives. CI runs
-  one seed per policy as a smoke gate; release balancing should rerun all 100.
-- Browser verification covers Chromium, not real Safari/Firefox devices.
-  The 200% case tests equivalent CSS reflow and device scaling, not browser UI
-  zoom controls. Audio/device testing and production deployment remain separate.
+## Continuous Play
+
+| Policy | First rebuild | All research | Final producer first purchased |
+| --- | --- | --- | --- |
+| Greedy | 1.42 hr | 20.08-20.26 hr | 9.03-9.17 hr |
+| Saving | 0.59 hr | 12.17-12.26 hr | 1.37-1.43 hr |
+| Inexpensive | 1.51 hr | 20.92-21.01 hr | 9.65-9.77 hr |
+
+Continuous play is intentionally faster than the short-visit target. More intense
+clicking, different research priorities or more frequent visits can change these
+results. Research ends after six improvements; continued equipment growth is
+available, but this edition makes no months-long content promise.
+
+The generated `output/workshop/progression.json` contains every seed's producer
+discoveries and purchases, research purchases, first rebuild, completion time,
+longest sampled affordability wait and manual purchase gap. CI uses one seed per
+policy/schedule; balancing releases should rerun the full 100-seed matrix.

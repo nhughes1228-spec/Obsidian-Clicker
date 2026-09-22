@@ -1,5 +1,9 @@
 # Obsidian Clicker Product and Engineering Roadmap
 
+> Historical roadmap for the archived Classic edition. The current Workshop
+> direction intentionally removes the systems described here. See IMPLEMENTATION.md
+> and BALANCE_REPORT.md for the active edition; do not reintroduce Classic modes.
+
 ## Product Vision
 
 Obsidian Clicker should become a long-form idle game that feels unmistakably connected to Obsidian Winds: precise, dramatic, musical, and slightly otherworldly. The player should always have a near-term decision, a medium-term discovery, and a long-term transformation to anticipate.

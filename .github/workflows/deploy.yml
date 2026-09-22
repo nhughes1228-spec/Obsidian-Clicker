@@ -1,5 +1,8 @@
 name: Publish game to GitHub Pages
-on: workflow_dispatch
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
 permissions:
   contents: read
   pages: write
@@ -22,6 +25,9 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run check
+      - run: npm run simulate
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:browser
       - run: npm run build
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
