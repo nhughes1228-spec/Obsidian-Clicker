@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#161819" />
+    <meta name="theme-color" content="#141316" />
     <title>Obsidian Clicker</title>
     <link rel="icon" href="assets/obsidian-winds-logo.png" />
     <link rel="stylesheet" href="style.css" />
@@ -17,14 +17,6 @@
       <button id="settings-open" aria-haspopup="dialog">Settings</button>
     </header>
     <p id="notice" class="notice" role="status" hidden></p>
-    <section class="goals" aria-labelledby="goals-title">
-      <div class="section-heading">
-        <h2 id="goals-title">Goals</h2>
-        <span><strong id="parts-balance">0</strong> Upgrade Parts</span>
-      </div>
-      <div id="goals-list"></div>
-      <p id="goal-announcement" class="sr-only" role="status"></p>
-    </section>
     <main>
       <section class="workshop" aria-label="Workshop production">
         <div class="stockpile">
@@ -45,6 +37,14 @@
           </button>
           <div id="click-feedback" aria-hidden="true"></div>
         </div>
+        <section class="goals" aria-labelledby="goals-title">
+          <div class="section-heading">
+            <h2 id="goals-title">Goals</h2>
+            <span><strong id="parts-balance">0</strong> Upgrade Parts</span>
+          </div>
+          <div id="goals-list"></div>
+          <p id="goal-announcement" class="sr-only" role="status"></p>
+        </section>
         <div id="limit-notice" class="notice" hidden>
           Production has reached this edition's numerical limit. Your save can
           still be exported.
@@ -61,6 +61,18 @@
           </button>
         </nav>
         <div id="production-view">
+          <div class="section-heading upgrades-heading">
+            <h2>Upgrades</h2>
+            <span id="upgrades-count" class="muted"></span>
+          </div>
+          <div id="upgrades"></div>
+          <p id="upgrades-empty" class="muted">
+            All available upgrades purchased.
+          </p>
+          <details id="installed-upgrades" hidden>
+            <summary id="installed-summary">Installed upgrades</summary>
+            <div id="installed-list"></div>
+          </details>
           <div class="section-heading">
             <h2>Equipment</h2>
             <div class="segments" aria-label="Buy quantity">
@@ -76,27 +88,12 @@
               purchasing</label
             >
           </div>
-          <div class="section-heading upgrades-heading">
-            <h2>Upgrades</h2>
-            <span id="upgrades-count" class="muted"></span>
-          </div>
-          <div id="upgrades"></div>
-          <p id="upgrades-empty" class="muted">
-            All available upgrades purchased.
-          </p>
-          <details id="installed-upgrades" hidden>
-            <summary id="installed-summary">Installed upgrades</summary>
-            <div id="installed-list"></div>
-          </details>
         </div>
         <div id="modifications-view" hidden>
           <div class="research-balance">
             <h2>Equipment Modifications</h2>
             <strong><span id="modification-parts">0</span> Parts</strong>
           </div>
-          <p class="muted">
-            Permanent equipment improvements. Upgrade Parts come from goals.
-          </p>
           <div id="modifications-list"></div>
         </div>
         <div id="research-view" hidden>
@@ -104,11 +101,6 @@
             <h2>Research</h2>
             <strong><span id="research-points">0</span> RP</strong>
           </div>
-          <p class="muted">
-            Experience from each workshop funds better equipment for the next.
-            Trade Obsidian for equipment; spend Research Points on permanent
-            improvements.
-          </p>
           <div class="rebuild-section">
             <h3>Rebuild Workshop</h3>
             <p id="rebuild-summary"></p>

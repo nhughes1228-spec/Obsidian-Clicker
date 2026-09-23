@@ -1,6 +1,7 @@
 import {
   GOALS,
   GOAL_LANES,
+  GOAL_MILESTONES,
   MODIFICATIONS,
   MODIFICATION_COSTS,
 } from "./content.js";
@@ -12,11 +13,22 @@ export function goalValue(state, goal) {
 }
 
 export function activeGoals(state) {
-  return GOAL_LANES.map((lane) =>
-    GOALS.find(
-      (goal) => goal.lane === lane && !state.claimedGoals.includes(goal.id),
-    ),
-  );
+  const claimed = new Set(state.claimedGoals);
+  return GOAL_LANES.map((lane) => {
+    const goal = GOAL_MILESTONES.find(
+      (g) => g.lane === lane && g.members.some((id) => !claimed.has(id)),
+    );
+    if (!goal) return undefined;
+    const members = goal.members.filter((id) => !claimed.has(id));
+    return {
+      ...goal,
+      members,
+      reward: GOALS.filter((g) => members.includes(g.id)).reduce(
+        (sum, g) => sum + g.reward,
+        0,
+      ),
+    };
+  });
 }
 
 export function modificationFactor(state, producer, effect) {

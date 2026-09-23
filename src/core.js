@@ -7,8 +7,11 @@ import {
   OBJECTIVES,
   MODIFICATIONS,
   MODIFICATION_COSTS,
+  SUPPORT_PRODUCERS,
+  IMPROVEMENTS,
 } from "./content.js";
 import { activeGoals, goalValue, modificationFactor } from "./goals.js";
+const upgradesById = new Map(UPGRADES.map((u) => [u.id, u]));
 
 export function createFreshState(now = Date.now()) {
   return {
@@ -38,7 +41,28 @@ export function createFreshState(now = Date.now()) {
 }
 
 export function deriveEconomy(state) {
+  const multipliers = Object.fromEntries(PRODUCERS.map((p) => [p.id, 1]));
+  for (const id of state.upgrades) {
+    const u = upgradesById.get(id);
+    if (u && "producer" in u) multipliers[u.producer] *= u.multiplier;
+  }
+  const supportByProducer = Object.fromEntries(
+    PRODUCERS.map((p) => [
+      p.id,
+      SUPPORT_PRODUCERS.includes(p.id)
+        ? Math.floor(
+            Math.min(state.producers[p.id], BALANCE.supportCap) /
+              BALANCE.supportBatch,
+          ) *
+          BALANCE.supportPerBatch *
+          modificationFactor(state, p.id, "output")
+        : 0,
+    ]),
+  );
+  const supportMultiplier =
+    1 + Object.values(supportByProducer).reduce((sum, n) => sum + n, 0);
   const global =
+    supportMultiplier *
     (state.research.includes("equipment") ? 1.25 : 1) *
     (state.research.includes("cooling") ? 1.5 : 1);
   const unitRates = Object.fromEntries(
@@ -47,13 +71,7 @@ export function deriveEconomy(state) {
       p.rate *
         modificationFactor(state, p.id, "output") *
         global *
-        2 **
-          UPGRADES.filter(
-            (u) =>
-              "producer" in u &&
-              u.producer === p.id &&
-              state.upgrades.includes(u.id),
-          ).length,
+        multipliers[p.id],
     ]),
   );
   const passiveRate = PRODUCERS.reduce(
@@ -67,6 +85,8 @@ export function deriveEconomy(state) {
   return {
     passiveRate,
     unitRates,
+    supportByProducer,
+    supportMultiplier,
     clickBase,
     clickShare,
     clickMultiplier,
@@ -156,11 +176,14 @@ function earn(state, amount) {
 /** Commands are the only entry point for player actions; simulation calls them too. */
 export function applyCommand(state, command) {
   if (command.type === "click") {
+    const count = command.count ?? 1;
+    if (!Number.isSafeInteger(count) || count < 1 || count > 10000)
+      return { ok: false };
     const amount = deriveEconomy(state).clickPower;
-    earn(state, amount);
-    state.clicks = Math.min(Number.MAX_SAFE_INTEGER, state.clicks + 1);
+    earn(state, amount * count);
+    state.clicks = Math.min(Number.MAX_SAFE_INTEGER, state.clicks + count);
     reconcile(state);
-    return { ok: true, amount };
+    return { ok: true, amount: amount * count };
   }
   if (command.type === "buyProducer") {
     if (!state.unlockedProducers.includes(command.id)) return { ok: false };
@@ -186,7 +209,7 @@ export function applyCommand(state, command) {
   } else if (command.type === "claimGoal") {
     const goal = activeGoals(state).find((g) => g?.id === command.id);
     if (!goal || goalValue(state, goal) < goal.target) return { ok: false };
-    state.claimedGoals.push(goal.id);
+    state.claimedGoals.push(...goal.members);
     state.upgradeParts += goal.reward;
   } else if (command.type === "buyModification") {
     const mod = MODIFICATIONS.find((m) => m.id === command.id);
@@ -238,16 +261,95 @@ export function applyCommand(state, command) {
   return { ok: true };
 }
 
+/** Pure preview: costs and all indirect effects share the command's economy rules. */
+export function purchasePreview(state, command, before = deriveEconomy(state)) {
+  let cost = Infinity,
+    next = state,
+    valid = false;
+  if (command.type === "buyProducer") {
+    const amount =
+      command.amount === "max"
+        ? affordableAmount(state, command.id)
+        : (command.amount ?? 1);
+    cost = producerCost(state, command.id, amount);
+    valid =
+      Number.isFinite(cost) && state.unlockedProducers.includes(command.id);
+    if (valid)
+      next = {
+        ...state,
+        producers: {
+          ...state.producers,
+          [command.id]: state.producers[command.id] + amount,
+        },
+      };
+  } else if (command.type === "buyUpgrade") {
+    const u = UPGRADES.find((u) => u.id === command.id);
+    valid = !!u && !state.upgrades.includes(u.id) && upgradeUnlocked(state, u);
+    if (valid) {
+      cost = u.cost;
+      next = { ...state, upgrades: [...state.upgrades, u.id] };
+    }
+  } else if (command.type === "buyModification") {
+    const m = MODIFICATIONS.find((m) => m.id === command.id);
+    cost = m
+      ? (MODIFICATION_COSTS[state.modifications[m.id]] ?? Infinity)
+      : Infinity;
+    valid = !!m && Number.isFinite(cost) && state.bestOwned[m.producer] > 0;
+    if (valid)
+      next = {
+        ...state,
+        modifications: {
+          ...state.modifications,
+          [m.id]: state.modifications[m.id] + 1,
+        },
+      };
+  }
+  const after = valid ? deriveEconomy(next) : before;
+  const nextMilestone =
+    command.type === "buyProducer"
+      ? IMPROVEMENTS.filter(
+          (u) => u.producer === command.id && !state.upgrades.includes(u.id),
+        ).sort((a, b) => a.owned - b.owned)[0]
+      : undefined;
+  return {
+    valid,
+    cost,
+    currency: command.type === "buyModification" ? "parts" : "obsidian",
+    passiveGain: after.passiveRate - before.passiveRate,
+    clickGain: after.clickPower - before.clickPower,
+    supportGain: after.supportMultiplier - before.supportMultiplier,
+    producerPriceAfter:
+      command.type === "buyModification" && valid
+        ? producerCost(next, command.id)
+        : null,
+    nextMilestone: nextMilestone
+      ? {
+          id: nextMilestone.id,
+          owned: nextMilestone.owned,
+          cost: nextMilestone.cost,
+          multiplier: nextMilestone.multiplier,
+        }
+      : null,
+  };
+}
+
 export function purchasingOptions(state) {
   const economy = deriveEconomy(state);
   return PRODUCERS.filter((p) => state.unlockedProducers.includes(p.id))
-    .map((p) => ({
-      id: p.id,
-      cost: producerCost(state, p.id),
-      gain: economy.unitRates[p.id],
-      payback: producerCost(state, p.id) / economy.unitRates[p.id],
-    }))
-    .filter((o) => Number.isFinite(o.cost));
+    .map((p) => {
+      const preview = purchasePreview(
+        state,
+        { type: "buyProducer", id: p.id },
+        economy,
+      );
+      return {
+        id: p.id,
+        cost: preview.cost,
+        gain: preview.passiveGain,
+        payback: preview.cost / preview.passiveGain,
+      };
+    })
+    .filter((o) => Number.isFinite(o.cost) && o.gain > 0);
 }
 
 /** Event-based automation avoids frame-dependent purchases, including during offline time. */

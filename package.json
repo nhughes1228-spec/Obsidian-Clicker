@@ -10,11 +10,13 @@
     "check": "tsc -p jsconfig.json",
     "simulate:campaign": "node tools/simulate-workshop.mjs",
     "start": "node tools/serve.mjs",
-    "simulate": "node tools/simulate-workshop.mjs 1",
+    "simulate": "node tools/simulate-workshop.mjs 100",
+    "simulate:quick": "node tools/simulate-workshop.mjs 1",
     "simulate:legacy": "node classic/tools/simulate-campaign.mjs 1 90"
   },
   "devDependencies": {
     "@playwright/test": "1.58.2",
+    "lucide-static": "1.47.0",
     "typescript": "5.9.3"
   }
 }

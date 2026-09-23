@@ -32,7 +32,7 @@ export function parseSave(text, now = Date.now()) {
     throw new Error(
       "This is not a Workshop save. Open Classic to use saves from the original edition.",
     );
-  if (envelope.version !== 1 && envelope.version !== SAVE_VERSION)
+  if (![1, 2, 3, SAVE_VERSION].includes(envelope.version))
     throw new Error(
       "Unsupported save version. The original save has been left untouched.",
     );
@@ -127,17 +127,11 @@ export function parseSave(text, now = Date.now()) {
         throw new Error("Invalid modification in save.");
       state.modifications[mod.id] = level;
     }
+    // Inserted goals create valid holes in older histories; validate each claim
+    // and its ledger, not a prefix of today's catalog.
     const claimed = GOALS.filter((g) => state.claimedGoals.includes(g.id));
     if (
       claimed.some((g) => goalValue(state, g) < g.target) ||
-      claimed.some((g) =>
-        GOALS.some(
-          (prior) =>
-            prior.lane === g.lane &&
-            GOALS.indexOf(prior) < GOALS.indexOf(g) &&
-            !state.claimedGoals.includes(prior.id),
-        ),
-      ) ||
       claimed.reduce((sum, g) => sum + g.reward, 0) !==
         state.upgradeParts + modificationSpending(state)
     )

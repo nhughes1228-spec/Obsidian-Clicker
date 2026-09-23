@@ -51,7 +51,7 @@ function near(a, b) {
 
 test("catalog has only the agreed production and research systems", () => {
   assert.equal(PRODUCERS.length, 8);
-  assert.equal(UPGRADES.length, 45);
+  assert.equal(UPGRADES.length, 61);
   assert.equal(RESEARCH.length, 6);
   const s = createFreshState(0);
   for (const key of [
@@ -88,11 +88,11 @@ test("purchases deduct batch costs, scale prices and add independent output", ()
   );
   assert.equal(s.obsidian, before - cost);
   assert.equal(s.producers.tray, 10);
-  near(deriveEconomy(s).passiveRate, 1);
+  near(deriveEconomy(s).passiveRate, 3);
   assert.ok(producerCost(s, "tray") > 15);
   applyCommand(s, { type: "buyProducer", id: "furnace" });
   assert.equal(s.producers.tray, 10);
-  near(deriveEconomy(s).passiveRate, 189);
+  near(deriveEconomy(s).passiveRate, 191);
 });
 test("invalid purchases do not mutate state and Max is affordable", () => {
   const s = funded(1000),
@@ -114,7 +114,7 @@ test("ordinary improvements enforce ownership and double only their producer", (
   applyCommand(s, { type: "buyProducer", id: "tray", amount: 10 });
   applyCommand(s, { type: "buyProducer", id: "rack" });
   applyCommand(s, { type: "buyUpgrade", id: "tray-0" });
-  near(deriveEconomy(s).passiveRate, 3);
+  near(deriveEconomy(s).passiveRate, 9);
   assert.equal(applyCommand(s, { type: "buyUpgrade", id: "tray-0" }).ok, false);
   assert.equal(
     upgradeUnlocked(
@@ -131,7 +131,7 @@ test("casting tools enforce sequence and report base plus passive share", () => 
   for (let i = 0; i < 5; i++)
     assert.ok(applyCommand(s, { type: "buyUpgrade", id: `tool-${i}` }).ok);
   const e = deriveEconomy(s);
-  near(e.clickPower, e.clickBase + e.passiveRate * 0.02);
+  near(e.clickPower, e.clickBase + e.passiveRate * 0.1);
 });
 test("rebuild awards gross lifetime points once and preserves permanent progress", () => {
   const s = funded(BALANCE.researchThreshold * 16);
@@ -163,7 +163,7 @@ test("all research bonuses, starter kit and automatic toggle match the catalog",
   s.lifetimeObsidian = BALANCE.researchThreshold * 1089;
   applyCommand(s, { type: "rebuild" });
   assert.equal(s.producers.tray, 10);
-  near(deriveEconomy(s).passiveRate, 1.875);
+  near(deriveEconomy(s).passiveRate, 5.625);
   near(deriveEconomy(s).clickPower, 2);
   const plain = structuredClone(s);
   plain.research = [];
@@ -204,9 +204,9 @@ test("time is credited once, capped at 24h offline, with zero a no-op", () => {
   assert.throws(() => advanceSimulation(s, 86400001), RangeError);
   const report = advanceTo(s, 1000 + 48 * 3600000, { offline: true });
   assert.equal(report.creditedSeconds, 86400);
-  near(s.obsidian, 86400);
+  near(s.obsidian, 259200);
   advanceTo(s, 1000 + 48 * 3600000, { offline: true });
-  near(s.obsidian, 86400);
+  near(s.obsidian, 259200);
 });
 test("numeric limit stays explicit and finite", () => {
   const s = funded(BALANCE.maxNumber);

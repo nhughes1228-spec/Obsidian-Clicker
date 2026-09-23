@@ -11,6 +11,7 @@ import {
 import { activeGoals, goalValue, modificationSpending } from "../src/goals.js";
 import {
   GOALS,
+  GOAL_MILESTONES,
   MODIFICATIONS,
   MODIFICATION_COSTS,
   SAVE_KEY,
@@ -25,7 +26,7 @@ import {
 
 function start() {
   const s = createFreshState(0);
-  for (let i = 0; i < 100; i++) applyCommand(s, { type: "click" });
+  applyCommand(s, { type: "click", count: 1000 });
   applyCommand(s, { type: "buyProducer", id: "tray" });
   return s;
 }
@@ -41,13 +42,36 @@ test("three goal tracks claim only completed active goals, exactly once", () => 
   for (const id of ["invalid", "production-1", "output-0"])
     assert.equal(applyCommand(s, { type: "claimGoal", id }).ok, false);
   assert.deepEqual(s, before);
-  assert.ok(applyCommand(s, { type: "claimGoal", id: "production-0" }).ok);
-  assert.equal(s.upgradeParts, 5);
+  assert.ok(
+    applyCommand(s, { type: "claimGoal", id: "milestone-production-1" }).ok,
+  );
+  assert.equal(s.upgradeParts, 15);
   assert.equal(
-    applyCommand(s, { type: "claimGoal", id: "production-0" }).ok,
+    applyCommand(s, { type: "claimGoal", id: "milestone-production-1" }).ok,
     false,
   );
-  assert.equal(activeGoals(s)[0].id, "production-1");
+  assert.equal(activeGoals(s)[0].id, "milestone-production-3");
+});
+
+test("v3 partial claims reduce a grouped reward without loss or duplicate Parts", () => {
+  const s = start();
+  s.claimedGoals = ["production-0"];
+  s.upgradeParts = 5;
+  const raw = JSON.parse(exportSave(s));
+  raw.version = 3;
+  const loaded = parseSave(JSON.stringify(raw), 0);
+  assert.deepEqual(loaded.claimedGoals, s.claimedGoals);
+  const goal = activeGoals(loaded)[0];
+  assert.equal(goal.target, 1000);
+  assert.equal(goal.reward, 10);
+  assert.ok(applyCommand(loaded, { type: "claimGoal", id: goal.id }).ok);
+  assert.equal(loaded.upgradeParts, 15);
+  assert.equal(new Set(loaded.claimedGoals).size, loaded.claimedGoals.length);
+  assert.equal(
+    applyCommand(loaded, { type: "claimGoal", id: goal.id }).ok,
+    false,
+  );
+  assert.deepEqual(parseSave(exportSave(loaded), 0), loaded);
 });
 test("claimed Parts buy an equipment-specific permanent improvement", () => {
   const s = start();
@@ -93,9 +117,10 @@ test("offline goals and modified production agree with live partitions", () => {
   assert.ok(Math.abs(a.lifetimeObsidian - b.lifetimeObsidian) < 1e-8);
   assert.deepEqual(activeGoals(a), activeGoals(b));
   assert.equal(a.upgradeParts, b.upgradeParts);
-  assert.equal(a.upgradeParts, 5); // Offline completion never claims automatically.
+  assert.equal(a.upgradeParts, 10); // Offline completion never claims automatically.
 });
 test("modification effects are bounded and rewards can fund the complete catalog", () => {
+  assert.equal(GOAL_MILESTONES.length, 36);
   const s = start();
   s.lifetimeObsidian = s.runObsidian = s.obsidian = 1e25;
   for (const p of Object.keys(s.producers)) s.producers[p] = 200;
@@ -121,9 +146,13 @@ test("modification effects are bounded and rewards can fund the complete catalog
     Math.abs(producerCost(s, "pump") / producerCost(plain, "pump") - 0.85) <
       1e-8,
   );
-  assert.equal(
-    deriveEconomy(s).unitRates.tray,
-    deriveEconomy(plain).unitRates.tray * 1.5,
+  const boosted = deriveEconomy(s),
+    original = deriveEconomy(plain);
+  assert.ok(
+    Math.abs(
+      boosted.unitRates.tray / original.unitRates.tray -
+        (1.5 * boosted.supportMultiplier) / original.supportMultiplier,
+    ) < 1e-10,
   );
   assert.deepEqual(parseSave(exportSave(s), s.lastSimulatedAt), s);
 });

@@ -1,12 +1,204 @@
 import { test, expect } from "@playwright/test";
 import { mkdir } from "node:fs/promises";
 import { createFreshState, reconcile, applyCommand } from "../src/core.js";
-import { SAVE_KEY, BALANCE, RESEARCH } from "../src/content.js";
+import { SAVE_KEY, BALANCE, RESEARCH, UPGRADES } from "../src/content.js";
 import { exportSave, BACKUP_KEY } from "../src/persistence.js";
 import { createFreshState as classicFresh } from "../classic/src/economy.js";
 import { exportSave as classicExport } from "../classic/src/persistence.js";
 
 const classicKey = "obsidian-clicker-save-v1";
+test("upgrade icons expose hover and keyboard details, including unaffordable items", async ({
+  page,
+}) => {
+  await ready(page);
+  await page.evaluate(() => window.advanceTime(1));
+  const icon = page.locator('[data-upgrade="tool-0"]');
+  await icon.hover();
+  const preview = page.locator("#upgrade-preview");
+  await expect(preview).toBeVisible();
+  await expect(preview).toContainText("Casting Tool I");
+  await expect(preview).toContainText("25 Obsidian");
+  await expect(preview.locator("button")).toBeDisabled();
+  await page.mouse.move(5,5);
+  await expect(preview).toBeHidden();
+  await icon.hover();
+  await expect(preview).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(preview).toBeHidden();
+  await icon.focus();
+  await expect(preview).toBeVisible();
+  await page.keyboard.press("Enter");
+  expect((await game(page)).upgrades).toEqual([]);
+  expect(
+    await icon.locator("img").evaluate((n) => n.complete && n.naturalWidth > 0),
+  ).toBe(true);
+});
+
+test("touch upgrade inspection never spends until the explicit purchase", async ({
+  browser,
+}) => {
+  const context = await browser.newContext({
+    viewport: { width: 320, height: 800 },
+    isMobile: true,
+    hasTouch: true,
+  });
+  try {
+    const page = await context.newPage();
+    await seed(page, preset("mature"));
+    await ready(page);
+    await page.evaluate(() => window.advanceTime(1));
+    const before = await game(page);
+    await page.locator('[data-upgrade="tool-0"]').tap();
+    const preview = page.locator("#upgrade-preview");
+    await expect(preview).toBeVisible();
+    expect((await game(page)).obsidian).toBe(before.obsidian);
+    expect((await game(page)).upgrades).toEqual(before.upgrades);
+    const box = await preview.boundingBox();
+    expect(box.x).toBeGreaterThanOrEqual(0);
+    expect(box.x + box.width).toBeLessThanOrEqual(320);
+    await mkdir("output/workshop/icons", { recursive: true });
+    await page.screenshot({ path: "output/workshop/icons/touch-320.png" });
+    await preview.locator("button").tap();
+    expect((await game(page)).upgrades).toContain("tool-0");
+    expect((await game(page)).obsidian).toBe(before.obsidian - 25);
+    await expect(preview).toBeHidden();
+  } finally {
+    await context.close();
+  }
+});
+
+test("available upgrades stay in price order after purchases, unlocks and rebuilding", async ({
+  page,
+}) => {
+  await seed(page, preset("mature"));
+  await ready(page);
+  await page.evaluate(() => window.advanceTime(1));
+  const verify = async () => {
+    const state = await game(page);
+    const expected = UPGRADES.filter((u) =>
+      state.availableUpgrades.includes(u.id),
+    )
+      .sort((a, b) => a.cost - b.cost || a.id.localeCompare(b.id))
+      .map((u) => u.id);
+    const ids = await page
+      .locator("#upgrades .upgrade:visible button")
+      .evaluateAll((nodes) => nodes.map((n) => n.dataset.upgrade));
+    expect(ids).toEqual(expected);
+  };
+  await verify();
+  await page.locator('[data-upgrade="tool-0"]').focus();
+  await page.keyboard.press("Enter");
+  await expect(page.locator("#installed-summary")).toBeFocused();
+  await verify();
+  const s = page.locator('[aria-label="Casting Tray details"]');
+  await s.focus();
+  await page.keyboard.press("Enter");
+  await page.evaluate(() => window.advanceTime(1000));
+  await expect(s).toBeFocused();
+  await expect(s.locator("..")).toHaveAttribute("open", "");
+  await page.locator("#research-tab").click();
+  await page.locator("#rebuild-open").click();
+  await page.locator("#confirm-action").click();
+  await page.locator("#production-tab").click();
+  await verify();
+});
+
+test("logo click response respects reduced motion and artwork is optically raised", async ({
+  page,
+}) => {
+  await ready(page);
+  await page.evaluate(() => window.advanceTime(1));
+  const y = await page
+    .locator("#logo-button img")
+    .evaluate((n) => new DOMMatrixReadOnly(getComputedStyle(n).transform).m42);
+  expect(y).toBeLessThan(0);
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  expect(
+    await page.evaluate(() => {
+      document.querySelector("#logo-button").click();
+      return document.querySelector("#logo-button").getAnimations().length;
+    }),
+  ).toBeGreaterThan(0);
+  await page.waitForTimeout(250);
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  expect(
+    await page.evaluate(() => {
+      document.querySelector("#logo-button").click();
+      return document.querySelector("#logo-button").getAnimations().length;
+    }),
+  ).toBe(0);
+  await page.evaluate(() => {
+    for (let i = 0; i < 20; i++) document.querySelector("#logo-button").click();
+  });
+  await expect(page.locator("#click-feedback .float")).toHaveCount(1);
+  expect(
+    await page
+      .locator(".casting-area")
+      .evaluate((n) => getComputedStyle(n, "::before").animationName),
+  ).toBe("none");
+});
+
+for (const width of [320, 390, 768, 1024, 1440, 1920]) {
+  test(`support purchase previews remain accurate and readable at ${width}px`, async ({
+    page,
+  }) => {
+    const errors = await cleanConsole(page);
+    await page.setViewportSize({ width, height: 900 });
+    const s = preset("mature");
+    s.producers.tray = 24;
+    s.upgrades = ["tray-0", "tool-0"];
+    reconcile(s);
+    await seed(page, s);
+    await ready(page);
+    await page.evaluate(() => window.advanceTime(1));
+    const row = page.locator(".producer").first();
+    const disclosure = row.locator("summary");
+    await expect(row.locator(".description")).not.toBeVisible();
+    await disclosure.click();
+    await expect(row.locator(".description")).toBeVisible();
+    expect(await row.evaluate((n) => n.scrollWidth <= n.clientWidth)).toBe(
+      true,
+    );
+    await disclosure.click();
+    await expect(row).toContainText("next at 25 owned");
+    await expect(row).toContainText("including support");
+    const before = await game(page);
+    const button = page.locator('[data-producer="tray"]');
+    await button.focus();
+    await page.keyboard.press("Enter");
+    const after = await game(page);
+    expect(after.passiveRate - before.passiveRate).toBeCloseTo(
+      before.producers[0].purchase.passiveGain,
+      6,
+    );
+    expect(after.supportByProducer.tray).toBeCloseTo(0.02, 6);
+    await expect(button).toBeFocused();
+    await page.locator('[data-quantity="10"]').click();
+    await expect(row).toContainText("Buy 10");
+    await button.scrollIntoViewIfNeeded();
+    expect(await row.evaluate((n) => n.scrollWidth <= n.clientWidth)).toBe(
+      true,
+    );
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+    ).toBe(true);
+    await mkdir("output/workshop/previews", { recursive: true });
+    await page.screenshot({
+      path: `output/workshop/previews/production-${width}.png`,
+    });
+    await page.locator("#modifications-tab").click();
+    await expect(page.locator("#modifications-list")).toContainText(
+      "Support contribution",
+    );
+    await page.locator('[data-modification="tray"]').scrollIntoViewIfNeeded();
+    await page.screenshot({
+      path: `output/workshop/previews/modifications-${width}.png`,
+    });
+    expect(errors).toEqual([]);
+  });
+}
 test("claim Parts, modify equipment, rebuild and reload without losing permanent rewards", async ({
   page,
 }) => {
@@ -16,12 +208,12 @@ test("claim Parts, modify equipment, rebuild and reload without losing permanent
   const claim = page.locator('[data-goal-lane="equipment"]');
   await claim.focus();
   await page.keyboard.press("Enter");
-  expect((await game(page)).upgradeParts).toBe(5);
+  expect((await game(page)).upgradeParts).toBe(13);
   await expect(page.locator(".goal").nth(2)).toBeFocused();
   await page.locator("#modifications-tab").click();
   await page.locator('[data-modification="tray"]').click();
   expect((await game(page)).modifications.tray).toBe(1);
-  expect((await game(page)).upgradeParts).toBe(0);
+  expect((await game(page)).upgradeParts).toBe(8);
   await page.locator("#research-tab").click();
   await page.locator("#rebuild-open").click();
   await expect(page.locator("#confirm-text")).toContainText("Upgrade Parts");
@@ -82,7 +274,7 @@ test("logo has no flavor caption and three reward goals remain visible", async (
   await expect(page.locator(".premise")).toHaveCount(0);
   await expect(page.locator(".goal")).toHaveCount(3);
   await expect(page.locator("#goals-list")).toContainText(
-    "Produce 100 lifetime Obsidian",
+    "Produce 1,000 lifetime Obsidian",
   );
   await page.locator("#logo-button").click();
   expect((await game(page)).goals[0].progress).toBe(1);
@@ -149,12 +341,12 @@ test("deterministic rapid clicks, purchases, offline time and stable focus", asy
     await handle.evaluate((n) => n.isConnected && document.activeElement === n),
   ).toBe(true);
   expect((await game(page)).producers[0].owned).toBe(1);
-  expect((await game(page)).obsidian).toBeCloseTo(31);
+  expect((await game(page)).obsidian).toBeCloseTo(91);
   await page.locator('[data-upgrade="tool-0"]').click();
-  expect((await game(page)).clickPower).toBe(5);
+  expect((await game(page)).clickPower).toBeCloseTo(5.003);
   const before = (await game(page)).obsidian;
   await page.locator("#logo-button").click();
-  expect((await game(page)).obsidian).toBeCloseTo(before + 5);
+  expect((await game(page)).obsidian).toBeCloseTo(before + 5.003, 6);
   const snapshot = JSON.stringify(await game(page));
   await page.evaluate(() => window.advanceTime(0));
   expect(JSON.stringify(await game(page))).toBe(snapshot);

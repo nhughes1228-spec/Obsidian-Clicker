@@ -1,5 +1,25 @@
 # Obsidian Clicker: Workshop Edition
 
+## Active-Play Candidate Release
+
+The user explicitly requested publication of the current build on September 22.
+Functional checks pass, but the 7-14-day and meaningful-progress balance gates
+do not. This is a playable candidate, not a balance-approved release. See
+`BALANCE_REPORT.md`. Classic files and hosting origins remain unchanged.
+
+`purchasePreview(state, command)` supplies total passive, click, and support
+gains without mutation. The UI, simulation policies, and automatic purchasing
+share it. Support is derived from current ownership, not stored or compounded.
+The first six producers add 2% per 25 owned, capped at 200; applicable permanent
+output modifications also improve that contribution.
+
+`npm run simulate` runs the full 900 active saves plus 12 controls and exits
+nonzero if a gate fails. `npm run simulate:quick` runs one seed per combination.
+Raw per-session data and compact summaries are written under `output/workshop/`.
+The strict simulation command and CI gates remain unchanged. GitHub Pages will
+remain blocked by failing balance gates; the custom domain's independent
+Cloudflare deployment must be verified separately.
+
 ## Play And Preserve
 
 Run `npm ci`, then `npm start`. Workshop opens at `http://127.0.0.1:5174/`;
@@ -7,7 +27,7 @@ the previous game is preserved at `http://127.0.0.1:5174/classic/`.
 The original logo is retained in both editions, with a text fallback if missing.
 Use a static server rather than opening HTML directly: the game uses ES modules.
 
-Workshop starts fresh. It uses `obsidian-clicker-workshop-v1`, save version 2,
+Workshop starts fresh. It uses `obsidian-clicker-workshop-v1`, save version 4,
 and the `workshop` edition identifier. Classic retains its original
 `obsidian-clicker-save-v1` save, recovery slots, and independent writer lock.
 Neither edition imports the other's saves. Workshop does not read, clear,
@@ -23,7 +43,7 @@ modifications. They are not a material input or a conversion step.
 There are no intermediate materials or dependencies between producer outputs.
 
 - Eight producers, from Casting Tray through Volcano Forge, independently earn
-  Obsidian. Ownership milestones 10/25/50/100/200 unlock five doubling upgrades
+  Obsidian. Ownership milestones 10/25/50/75/100/150/200 unlock seven doubling upgrades
   per producer. Five sequential Casting Tools improve clicks.
 - Clicks award their derived amount every time. No timing bonus, cooldown,
   random critical hit, temporary event, or penalty for irregular clicking.
@@ -34,7 +54,9 @@ There are no intermediate materials or dependencies between producer outputs.
 - Three goal tracks show one goal each: lifetime production, best production
   rate, and best equipment ownership. Claiming replaces the goal with its next
   milestone. Equipment milestones are ordered by estimated purchase investment.
-  There are 72 one-time goals, not daily tasks or randomized rewards.
+  There are 36 one-time milestones, not daily tasks or randomized rewards.
+  Each collects a bundle from the retained 116-entry reward ledger. Already
+  claimed rewards are subtracted; all 1,220 possible Parts remain available.
 - Each producer has one five-level modification. Six improve their own output
   by 10% per level (50% maximum); Cooling Pump and Magma Well reduce their own
   purchase prices by 3% per level (15% maximum). Level costs are 5/10/20/35/50
@@ -73,9 +95,10 @@ no-op and invalid durations throw without changing progression.
 Save validation rejects unsupported versions, unrelated data, negative/nonfinite
 numbers, oversized imports, fractional ownership, and inconsistent research
 accounting. Parts must equal claimed goal rewards minus modification spending;
-claimed goals require valid milestone records and preceding claims. Version 1
-migrates additively, preserving its original raw save in recovery before writing
-version 2. Historical equipment counts unavailable in old saves start from current
+claimed goals require valid milestone records and unique IDs. Grouped milestones
+do not invalidate previously claimed entries. Versions 1-3 migrate additively,
+preserving the original raw save in recovery before writing version 4.
+Historical equipment counts unavailable in version 1 start from current
 ownership; lifetime output and best rate remain intact. Unknown item IDs and
 imported strings never become UI markup.
 Recovery retains a previous valid save and an explicitly replaced original.
@@ -94,20 +117,26 @@ limit. This is not an arbitrary-precision or unlimited-duration economy.
 
 ## Verification And Release
 
-Goal-update verification: 89 unit tests (24 Workshop and 65 Classic), 37 Chromium
-browser tests and shared-core type checks pass. Screenshots cover 320-1920px,
+Current local verification: 98 unit tests, 47 Chromium browser tests
+and shared-core type checks pass. Screenshots cover 320-1920px,
 landscape and zoom-equivalent reflow. The game-client screenshots were inspected.
-The 600-run progression matrix includes legal goal claims and modification
-purchases. Reachability/early-game gates pass, but optimized play is faster than
-the former three-day Research minimum; see BALANCE_REPORT.md for the explicit
-comparison. That lower bound is diagnostic now, not an enforced slowdown.
+The active progression matrix includes legal goal claims and modification
+purchases. Full completion is reachable, but the 7-14-day duration and meaningful
+opportunity gates fail; see BALANCE_REPORT.md. Publication remains blocked.
+
+The current icon shelf uses nine locally bundled Lucide SVGs (license included
+in `assets/icons/`). Hover or focus exposes upgrade details. Touch taps inspect;
+the panel's Buy button confirms purchase. Price sorting and stable node ownership
+are retained. The current goal-cadence follow-up has a nine-run diagnostic;
+the prior 900-run report does not validate its newer grouping.
 
 - `npm test`: Workshop regression tests plus all preserved Classic unit tests.
 - `npm run check`: checked JavaScript for the shared core and content catalog.
 - `npm run test:browser`: Chromium interaction, save isolation, corruption,
   accessibility, layout and Classic smoke tests. Screenshots: `output/workshop/`.
-- `npm run simulate`: one seed for each of three policies and two schedules.
-- `npm run simulate:campaign -- 100`: 600 fresh-save runs; results and limitations
+- `npm run simulate`: 900 active runs plus 12 continuous/idle controls.
+- `npm run simulate:quick`: one seed per active combination plus controls.
+- `npm run simulate:campaign -- 100`: equivalent full matrix; results and limitations
   are summarized in BALANCE_REPORT.md.
 - `npm run simulate:legacy`: the archived Classic campaign smoke model.
 - `npm run build`: copies only each edition's HTML, CSS, runtime modules and

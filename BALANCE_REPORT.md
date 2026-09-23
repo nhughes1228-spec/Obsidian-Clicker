@@ -1,6 +1,125 @@
 # Workshop Progression Report
 
-## Current: Goal Rewards And Modifications
+## New Goal Cadence: Local Follow-Up
+
+The newer local candidate consolidates 116 claims into 36 milestones while
+retaining the underlying reward ledger and 1,220 total Parts. The quick
+nine-policy/rate diagnostic now records 6-10 claims during the first 15-minute
+visit, versus 33-46 in the corresponding earlier seed. Production and output
+tracks each have six milestones; equipment has three per producer (10/100/200).
+Earlier claimed entries are deducted from each larger reward.
+
+All nine quick runs reach all 40 modification levels, but completion varies
+from 4.33 to 18.33 days and late gaps remain 900 seconds. These are one-seed
+diagnostics, not a replacement for the previous 900-run benchmark. The broad
+economy release gates still fail; no deployment has been made. The detailed
+matrix below is historical for the pre-consolidation candidate, not validation
+of the current goal cadence.
+
+## Active-Play Candidate: Release Blocked
+
+September 22, 2026. This is a local, unreleased candidate. Functional correctness
+does not establish good pacing. Do not deploy while the simulation gates fail.
+
+### Implemented Mechanics
+
+- Base production: Tray 0.3/s, Rack 3/s, Pump 32/s, Furnace 188/s,
+  Line 1,040/s, Foundry 8,800/s, Well 60,000/s, Forge 400,000/s.
+- Pump base price 1,500 and Foundry 1.5 million; other base prices unchanged.
+  Cost growth remains 1.15. No already-owned producer loses output.
+- First six producers add 2% workshop support per 25 owned, capped at 200.
+  Contributions add, never recursively compound. Output modifications improve
+  both direct production and their own support contribution.
+- Existing ordinary upgrade IDs remain; new upgrades at 75 and 150 double
+  output. Casting Tools cumulatively add 1/2/4/7/10% of passive output per click.
+  Improved Casting doubles that to 2/4/8/14/20%, plus the upgraded click base.
+- 116 goals now award 1,220 Parts in total. All 40 modification levels still
+  cost 960 Parts. Existing rewards, claims and permanent purchases are retained.
+
+### Reproducible Model
+
+Run `npm run simulate`: 100 seeds for each of three click rates (5, 7.5, 10/s)
+and three purchasing strategies. Each active session lasts 900 seconds; visits
+start eight hours apart. Successful shopping removes 0.3-1 second of clicking.
+The final clock advances in five-second steps. All income, purchases, claims,
+modifications, research, rebuilding and offline processing use the shared core.
+
+Greedy buys best affordable payback. Saving considers equipment-plus-milestone
+bundles and can wait for them. Inexpensive prefers cheap batches of ten or visible
+upgrades and sometimes skips shopping. Automation defaults off, as in the game.
+Research is bought in catalog order whenever a rebuild can fund the next item.
+These are diagnostic policies, not exhaustive optimal play or measured humans.
+
+Completion requires all eight producers purchased, all six Research purchases,
+and all 40 modification levels. A small purchase is not automatically meaningful.
+The harness records cumulative 5% income improvements, first producer purchases,
+rebuilds and modifications. Separately, it checks affordable purchases and
+sequences for a 5% improvement, including milestone lookahead. This bounded
+counterfactual search is conservative, not an exhaustive solver.
+
+Raw results: `output/workshop/active-progression-100.json`.
+Compact ranges: `output/workshop/active-summary-100.json`.
+Every run includes observed producer unlocks/purchases, ordinary milestone dates,
+goal claim dates, rebuild recovery, per-session equipment shares, support,
+click income, passive income, and both realized and opportunity gaps. Offline
+discoveries are timestamped at the next visit, not claimed as exact unlock times.
+Rebuild recovery uses active and elapsed clocks; null means recovery was not
+observed before a subsequent rebuild or the end of the run.
+
+There are also nine continuous-play controls, each observed for 24 hours, and
+three idle controls observed for 21 days. Idle controls use 15 bootstrap clicks
+to buy the first Tray, then never click or rebuild; otherwise a pre-Starter-Kit
+reset would leave a zero-income workshop. They are production controls, not
+evidence of fully idle Research completion. Continuous noncompletion at 24 hours
+is a censored result, not proof of an impossible campaign.
+
+### Remaining Balance Blockers
+
+Final matrix, 100 seeds in every row. Time ranges are elapsed days and cumulative
+active minutes, never substituted for each other.
+
+| Clicks/s | Policy | Completion days | Active minutes | Longest late opportunity gap (seconds) |
+| --- | --- | --- | --- | --- |
+| 5 | Affordable payback | 6.00-6.33 | 270-285 | 900 |
+| 5 | Saving/lookahead | 4.67 | 210 | 895 |
+| 5 | Inexpensive bulk | 5.33-8.67 | 240-391 | 895-900 |
+| 7.5 | Affordable payback | 5.00-5.67 | 225-255 | 900 |
+| 7.5 | Saving/lookahead | 4.00 | 180 | 870-880 |
+| 7.5 | Inexpensive bulk | 5.33-8.00 | 240-361 | 900 |
+| 10 | Affordable payback | 4.33-5.00 | 195-225 | 900 |
+| 10 | Saving/lookahead | 4.33 | 195 | 875 |
+| 10 | Inexpensive bulk | 5.67-8.00 | 255-364 | 900 |
+
+First producer: 10-25 active seconds. First upgrade: 5 active seconds.
+First rebuild: session 2 in all 900 runs, eight elapsed hours and 15 active
+minutes after starting. Research ends in 0.67-3.34 elapsed days. Observed rebuild
+recovery ranges from 315 to 1,785 active seconds; some are censored by another
+rebuild. Only 243/900 runs satisfy the full 7-14-day arc. Four runs exceed the
+early 120-second opportunity limit; all 900 exceed the late 300-second limit.
+All nine 24-hour continuous controls reach 39/40 modification levels, but do
+not complete the arc in that observation window.
+
+The revised prices put the first rebuild in session two in the full active
+matrix. Every active run reaches all equipment, Research and modifications.
+However, completion is too early for most policies, and late opportunities still
+have gaps approaching a full 15-minute session. The release command deliberately
+returns a failing exit code. Functional test success must not override it.
+
+Sensitivity experiments with growth 1.10-1.15, milestone multipliers 2-4 and
+smaller intermediate rewards did not meet all targets together. Gentler costs
+and larger multipliers often compressed completion into roughly 1-3 days;
+smaller goal rewards could instead extend the final modification wait past
+19 days. Those experimental constants were not retained.
+
+Next tuning must address *where* rewards and gains occur, not merely total Parts
+or overall duration: distribute affordable milestone opportunities into the
+late sessions; reduce the penalty for affordable/bulk strategies; prove funding
+without the hardest legacy goals; and rerun the full matrix. No additional
+currency, timer, side mode, click gimmick, or offline nerf has been introduced
+to hide these failures. Current results do not prove these targets impossible;
+they prove this candidate has not met them.
+
+## Historical: Goal Rewards And Modifications
 
 September 21, 2026: 600 fresh saves, three policies x two schedules x 100 seeds.
 The shared-core simulator now claims every completed active goal and buys an

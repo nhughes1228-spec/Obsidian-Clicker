@@ -1,5 +1,37 @@
 Original prompt: Generate a cookie-clicker clone using the Obsidian Winds logo as the big cookie. We can figure out what all the other parts of the game will be called but for now let's focus on building the game itself.
 
+Publication requested (2026-09-22):
+- User explicitly requested pushing the current build to GitHub and bringing the playable site up to date. This supersedes the earlier publication hold, but does not resolve or waive the documented economy failures.
+- Fresh verification: 98 unit tests, checked JavaScript, allowlist build and whitespace checks pass. Browser suite: 46 passed initially; the animated-logo stability test timed out and passed on isolated rerun. Previous full run passed all 47.
+- Nine fresh diagnostic simulations still fail full-arc duration and late meaningful-opportunity gates. Strict CI gates are unchanged; GitHub Pages remains blocked by those failures. Verify the independent Cloudflare custom-domain deployment after pushing.
+- Classic is unchanged. Save version 4 retains the existing Workshop origin/key and preserves prior reward history.
+
+Goals, icon shelf, and Obsidian palette (2026-09-22, unreleased):
+- Checked Cookie Clicker's official store implementation: price-sorted upgrade tiles with icon artwork and hover information. Added a compact, price-sorted 56px icon shelf above equipment, using nine locally bundled Lucide icons with license; no runtime CDN dependency. Installed tiles stay separate.
+- Hover/focus exposes name, effect, and cost; unavailable tiles remain inspectable. Touch taps inspect without spending, with an explicit purchase button. Escape/outside click dismisses the panel; placement stays within the viewport. Fixed a render-loop bug that canceled the hover-dismiss timer.
+- Replaced green/mint accents and green-tinted surfaces with black/grey/purple throughout the Workshop UI, including affordance, progress, click surface and touch highlight. Classic unchanged.
+- Consolidated 116 small reward claims into 36 milestone bundles: 6 lifetime, 6 output, and 24 equipment. Equipment checkpoints at 10/100/200. First lifetime goal is 1,000; first output goal is 100/s. The original 116-entry ledger remains solely for compatibility; grouped claims record only unclaimed entries and preserve the total 1,220 Parts budget.
+- Save version 4 accepts v1-v3, retaining the existing backup/recovery behavior. Partial prior claims reduce a milestone's reward; balances, modifications, ownership and research are not reset. Initial 10/50/200 grouping delayed Parts excessively; adjusted to 10/100/200 after a simulation check.
+- Verification: 98 unit tests and 47 Chromium browser tests pass, including unaffordable-icon inspection, hover dismissal, keyboard, touch confirmation, viewport placement, cost sorting, milestone claims and v3 partial-claim preservation. Nine quick active simulations reach every modification; first-visit claims drop from 33-46 to 6-10. Existing duration/late-opportunity gates still fail (4.33-18.33 days); prior 900-seed results are historical, not validation of this grouping. No push or deployment.
+
+Streamlined presentation (2026-09-22, unreleased):
+- Available upgrades now render cheapest first, including after unlocks, purchases, and rebuilds. Installed upgrades remain separate. Stable ordering preserves keyboard focus. The seven equipment milestones have consistent I-VII display names while preserving all purchase IDs.
+- Equipment rows show ownership, purchase gain, and price; descriptions, support, click gains and milestones remain available in native expandable Details. Modification breakdowns use the same disclosure pattern. Removed repeated explanatory paragraphs and duplicate goal reward text.
+- Moved the three tangible goals beneath the logo, making the workshop balance and click target the first screen's focus. Added restrained charcoal shading, a shaded click surface, softer shadows, subtle idle light changes, click response, and clear affordable-button contrast without restoring purple decoration.
+- Raised the existing logo artwork 5% within its image box to correct its optical alignment. Rapid clicks use one feedback label instead of overlapping numbers. Reduced-motion settings cover both elements and pseudo-elements.
+- Verified a fresh three-minute browser shopping sequence at seven clicks/second, with legal clicks/purchases/goal claims and no seeded funds or console errors. This presentation pass does not resolve the previously documented economy failures; no core constants or save rules changed this turn. No publication.
+- Verification: 97 unit tests and 45 browser tests pass, including cost ordering across unlock/reset transitions, expandable detail focus, single click-feedback labels, optical offset, reduced-motion pseudo-elements, and the existing six-width/landscape/reflow checks. Required game-client and desktop/mobile screenshots inspected. Classic unchanged.
+
+Active-play rebalance (2026-09-22, unreleased):
+- Added additive capped equipment support, modification support effects, 75/150 ownership improvements, earlier passive click scaling, pure purchase previews, and intermediate goals while preserving old IDs and rewards.
+- Save v3 accepts v1/v2 and retains original recovery data. Old goal histories may contain gaps where new milestones were inserted; ledger and eligibility validation remain enforced.
+- Replaced the pacing harness with legal-command active visits at 5/7.5/10 clicks per second, shopping pauses, three strategies, complete modification progression, and strict meaningful-progress gates.
+- Initial candidate fails release gates: long late-game sessions without meaningful gains and completion earlier than 7 days for most strategies. Do not push or deploy this candidate. Classic is unchanged.
+- Final verification: 97 unit tests, 43 Chromium browser tests, checked JavaScript, explicit-allowlist build, and whitespace validation pass. Ran the required develop-web-game client; inspected fresh play and purchase/modification screenshots at phone, tablet and desktop sizes. No browser errors. Classic smoke test and save isolation pass.
+- Final 900 active runs plus 12 controls are recorded in output/workshop/active-progression-100.json and active-summary-100.json. All active runs finish all 40 modifications, all producers and Research; all first rebuilds are in session 2. Only 243/900 satisfy 7-14 days. Four exceed the 120-second early opportunity target; every run exceeds the 300-second late target (870-900 seconds).
+- The simulator separately tests affordable purchase sequences, not just observed actions, and gates remain strict. npm run simulate now runs 100 seeds per combination; simulate:quick is the smaller diagnostic. The failing simulation exit is intentional and prevents publication through the existing Pages workflow.
+- Outstanding: late-game reward/milestone distribution, affordable-strategy sensitivity, funding without hardest legacy goals, and final balance calibration. No push or deployment; production remains unchanged. Local preview: http://127.0.0.1:5174/.
+
 Publication (2026-09-21):
 - User explicitly authorized GitHub push and updating clicker.obsidianwinds.org.
 - Confirmed the custom domain is served by the existing Cloudflare Worker with GitHub main build integration; GitHub Pages is a separate destination.

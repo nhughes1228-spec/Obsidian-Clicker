@@ -13,6 +13,7 @@ import {
   advanceTo,
   deriveEconomy,
   upgradeUnlocked,
+  purchasePreview,
 } from "./core.js";
 import { createSaveStore, parseSave, exportSave } from "./persistence.js";
 import { createUI, $, format } from "./ui.js";
@@ -247,17 +248,24 @@ window.advanceTime = (ms) => {
   manualClock = true;
   render();
 };
-window.render_game_to_text = () =>
-  JSON.stringify({
+window.render_game_to_text = () => {
+  const economy = deriveEconomy(state);
+  return JSON.stringify({
     edition: EDITION,
     obsidian: state.obsidian,
     lifetimeObsidian: state.lifetimeObsidian,
-    ...deriveEconomy(state),
+    ...economy,
     producers: PRODUCERS.map((p) => ({
       id: p.id,
       name: p.name,
       owned: state.producers[p.id],
       unlocked: state.unlockedProducers.includes(p.id),
+      support: economy.supportByProducer[p.id],
+      purchase: purchasePreview(
+        state,
+        { type: "buyProducer", id: p.id },
+        economy,
+      ),
     })),
     upgrades: state.upgrades,
     availableUpgrades: UPGRADES.filter(
@@ -285,4 +293,5 @@ window.render_game_to_text = () =>
     saveError: error,
     readOnly,
   });
+};
 render();
