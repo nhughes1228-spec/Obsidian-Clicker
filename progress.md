@@ -1,5 +1,17 @@
 Original prompt: Generate a cookie-clicker clone using the Obsidian Winds logo as the big cookie. We can figure out what all the other parts of the game will be called but for now let's focus on building the game itself.
 
+Pacing release authorized (2026-09-23):
+- User explicitly said "Deploy" after receiving the 1.3-4-day progression results. Publishing the tested rebalance to the existing GitHub main and Cloudflare custom domain; no origin change or Classic edits.
+- Historical entries below describe the pre-authorization hold. The original 7-14-day simulation gate remains unchanged and failing; this release is not evidence that it passed.
+
+Pacing repair candidate (2026-09-23, local only):
+- Shared equipmentCostUnits keeps the original 15% price growth for the first 50 units, then uses 4%. Purchases, Max, previews, automation and equipment-goal ordering use this curve. No already-owned output is reduced.
+- First three equipment upgrades and Casting Tool II cost 25% less. Improvements at 100/150/200 owned multiply Tray/Rack/Pump/Furnace/Line/Foundry/Well/Forge output by 24/16/10/7/5/4/3/2 respectively, keeping earlier equipment relevant. UI already displays the actual multiplier.
+- Still 36 displayed goal bundles, original IDs and 1,220 Parts budget. Save v5 accepts v1-v4, preserving balances, ownership, upgrades, research, modifications and claim histories; retains the original save in recovery. Classic unchanged.
+- Full fresh-save matrix: 900 active runs plus 12 controls. All active runs complete all eight producers, six Research and 40 modifications. First rebuild session 2 in all runs. Worst early opportunity gap 120s, worst late gap 90s (previous candidate 900s). Realized decisions can still lag available alternatives: worst observed realized gap 575s; no claim that every player will select an efficient purchase.
+- Remaining original gate: completion is 1.34-4.01 elapsed days (66.8-189 active minutes), not 7-14 days. Strict evaluateGates and CI have NOT been weakened. Asked user whether to prioritize shorter steady progression or retain 7-14 days with more upgrades; no answer at time of writing. No push/deployment of this candidate.
+- Verification: 103 unit tests, 48 browser tests, checked JavaScript and allowlist build pass. Added boundary/Max pricing, full multiplier-preview, goal-order, v4 recovery, fresh-strategy and browser tooltip regressions. Game client ran without console errors; desktop/mobile screenshots inspected. Local preview remains http://127.0.0.1:5174/.
+
 Publication requested (2026-09-22):
 - User explicitly requested pushing the current build to GitHub and bringing the playable site up to date. This supersedes the earlier publication hold, but does not resolve or waive the documented economy failures.
 - Fresh verification: 98 unit tests, checked JavaScript, allowlist build and whitespace checks pass. Browser suite: 46 passed initially; the animated-logo stability test timed out and passed on isolated rerun. Previous full run passed all 47.

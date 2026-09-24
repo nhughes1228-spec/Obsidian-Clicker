@@ -1,5 +1,73 @@
 # Workshop Progression Report
 
+## September 23: Stalls Repaired, Duration Still Below Target
+
+Release note: after reviewing these results, the user explicitly requested
+deployment on September 23. The pre-release hold described below is superseded
+by that request. Measurements and the original strict duration gate are unchanged.
+
+Local candidate, not deployed. `npm run simulate` ran 100 seeds per combination
+of 5/7.5/10 clicks per second and all three existing strategies: 900 active runs,
+plus nine continuous controls and three idle controls. The policies, shopping
+pauses, clocks, completion definition and strict gate thresholds are unchanged.
+
+Changes: price growth stays at 15% until 50 owned, then becomes 4%; the first
+three equipment improvements and Casting Tool II cost 25% less. Improvements
+at 100/150/200 owned now grant x24/x16/x10/x7/x5/x4/x3/x2 for Tray through Forge.
+These stronger late upgrades keep cheaper equipment productive. Equipment goals
+are sorted using the same cumulative bulk price calculation as purchases.
+No new goals or reward entries were added. Existing output is never reduced.
+
+### Current Results
+
+| Clicks/s | Strategy | Completion days | Active minutes | Worst early / late opportunity gap |
+| --- | --- | --- | --- | --- |
+| 5 | Affordable payback | 4.00-4.01 | 186.7-189.0 | 120s / 20s |
+| 5 | Saving/lookahead | 1.34-2.01 | 66.8-103.2 | 15s / 10s |
+| 5 | Inexpensive bulk | 2.67-3.00 | 121.3-139.1 | 65s / 90s |
+| 7.5 | Affordable payback | 3.33-3.67 | 151.8-166.8 | 120s / 10s |
+| 7.5 | Saving/lookahead | 1.67 | 85.3-85.8 | 15s / 5s |
+| 7.5 | Inexpensive bulk | 2.67 | 122.3-125.0 | 65s / 20s |
+| 10 | Affordable payback | 3.00-3.34 | 137.7-152.7 | 70s / 5s |
+| 10 | Saving/lookahead | 1.67 | 81.5-81.7 | 10s / 5s |
+| 10 | Inexpensive bulk | 2.67 | 121.8-124.4 | 60s / 20s |
+
+All 900 complete all equipment, Research and 40 modification levels. First
+rebuild is session 2 in every run. First producer takes 10-25 active seconds;
+first upgrade takes 5 seconds. First-visit claims remain 6-10, not the former
+33-46. Observed rebuild recovery spans 400-1,380 active seconds. Raw reports
+retain elapsed times separately, so overnight income is not counted as clicking.
+
+The longest late gap without an affordable meaningful purchase/sequence is now
+90 seconds, versus 900 in the deployed candidate's nine-run diagnostic. Early
+gaps max out at the unchanged 120-second limit. This measures *available*
+opportunities, not guaranteed human choices: the longest realized progress gap
+is 575 seconds. The shortest useful affordable option can differ from the
+simulated policy's choice. Strategy sensitivity has improved but remains real.
+
+Producer first-purchase ranges in elapsed hours: Tray 0.003-0.007, Rack
+0.003-0.028, Pump 0.013-0.103, Furnace 0.042-0.201, Line 0.093-16.035,
+Foundry 0.157-24.074, Well 0.225-48.126, Forge 8.229-64.203. Milestone dates,
+support contributions, direct production shares and goal dates are retained
+for every run in `output/workshop/active-progression-100.json`.
+
+All nine continuous controls complete in 1.95-4.89 hours. The three idle-only
+controls do not complete Research because that control deliberately never
+rebuilds; their 900-second gaps are reported, not counted as active-play success.
+First-visit clicking contributes 10-39% of earned active income depending on
+strategy. Fully upgraded clicking still adds 100%/200% to passive production at
+5/10 clicks per second, excluding the small flat click amount.
+
+**One original acceptance gate still fails:** the campaign takes 1.34-4.01 days,
+not 7-14. `npm run simulate` intentionally still exits nonzero. The user has
+been asked whether to accept the shorter steady arc or add more ordinary
+upgrade content to support the longer target. No gate was relaxed, no artificial
+waiting requirement was added, and this candidate has not been published.
+
+Save v5 retains v1-v4 progress and the original recovery copy. Verification:
+103 unit tests, 48 browser tests, checked JavaScript and public-asset build pass.
+The reports below are historical and do not describe this candidate.
+
 ## New Goal Cadence: Local Follow-Up
 
 The newer local candidate consolidates 116 claims into 36 milestones while

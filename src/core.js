@@ -9,6 +9,7 @@ import {
   MODIFICATION_COSTS,
   SUPPORT_PRODUCERS,
   IMPROVEMENTS,
+  equipmentCostUnits,
 } from "./content.js";
 import { activeGoals, goalValue, modificationFactor } from "./goals.js";
 const upgradesById = new Map(UPGRADES.map((u) => [u.id, u]));
@@ -113,12 +114,10 @@ export function producerCost(state, id, amount = 1) {
   )
     return Infinity;
   const result =
-    (p.cost *
+    p.cost *
       modificationFactor(state, p.id, "price") *
       (state.research.includes("purchasing") ? 0.9 : 1) *
-      BALANCE.costGrowth ** state.producers[id] *
-      (BALANCE.costGrowth ** amount - 1)) /
-    (BALANCE.costGrowth - 1);
+      equipmentCostUnits(state.producers[id], amount);
   return Number.isFinite(result) && result <= BALANCE.maxNumber
     ? Math.ceil(result - 1e-8)
     : Infinity;

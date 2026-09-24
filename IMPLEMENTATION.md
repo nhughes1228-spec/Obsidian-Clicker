@@ -1,6 +1,21 @@
 # Obsidian Clicker: Workshop Edition
 
-## Active-Play Candidate Release
+## September 23 Pacing Release
+
+The current local candidate eases equipment growth from 15% to 4% after 50
+owned, discounts the first three equipment improvements and Casting Tool II,
+and strengthens improvements at 100/150/200 owned for the earlier equipment.
+Equipment goals use the same bulk-cost curve as purchases. There are no new
+goals, currencies or systems. Existing ownership, upgrades and rewards remain.
+
+All 900 active runs pass early/late purchase-opportunity checks and complete
+the catalog, but finish in 1.34-4.01 days. The original 7-14-day gate remains
+unchanged and fails. After reviewing the shorter completion range, the user
+explicitly requested deployment. This publishes the shorter playable arc, not
+a claim that the original duration gate passed. The independent Cloudflare
+deployment is verified separately; the strict GitHub Pages gate is unchanged.
+
+## September 22 Candidate Release
 
 The user explicitly requested publication of the current build on September 22.
 Functional checks pass, but the 7-14-day and meaningful-progress balance gates
@@ -27,7 +42,7 @@ the previous game is preserved at `http://127.0.0.1:5174/classic/`.
 The original logo is retained in both editions, with a text fallback if missing.
 Use a static server rather than opening HTML directly: the game uses ES modules.
 
-Workshop starts fresh. It uses `obsidian-clicker-workshop-v1`, save version 4,
+Workshop starts fresh. It uses `obsidian-clicker-workshop-v1`, save version 5,
 and the `workshop` edition identifier. Classic retains its original
 `obsidian-clicker-save-v1` save, recovery slots, and independent writer lock.
 Neither edition imports the other's saves. Workshop does not read, clear,
@@ -43,7 +58,7 @@ modifications. They are not a material input or a conversion step.
 There are no intermediate materials or dependencies between producer outputs.
 
 - Eight producers, from Casting Tray through Volcano Forge, independently earn
-  Obsidian. Ownership milestones 10/25/50/75/100/150/200 unlock seven doubling upgrades
+  Obsidian. Ownership milestones 10/25/50/75/100/150/200 unlock seven output upgrades
   per producer. Five sequential Casting Tools improve clicks.
 - Clicks award their derived amount every time. No timing bonus, cooldown,
   random critical hit, temporary event, or penalty for irregular clicking.
@@ -96,8 +111,8 @@ Save validation rejects unsupported versions, unrelated data, negative/nonfinite
 numbers, oversized imports, fractional ownership, and inconsistent research
 accounting. Parts must equal claimed goal rewards minus modification spending;
 claimed goals require valid milestone records and unique IDs. Grouped milestones
-do not invalidate previously claimed entries. Versions 1-3 migrate additively,
-preserving the original raw save in recovery before writing version 4.
+do not invalidate previously claimed entries. Versions 1-4 migrate additively,
+preserving the original raw save in recovery before writing version 5.
 Historical equipment counts unavailable in version 1 start from current
 ownership; lifetime output and best rate remain intact. Unknown item IDs and
 imported strings never become UI markup.
@@ -117,18 +132,19 @@ limit. This is not an arbitrary-precision or unlimited-duration economy.
 
 ## Verification And Release
 
-Current local verification: 98 unit tests, 47 Chromium browser tests
+Current local verification: 103 unit tests, 48 Chromium browser tests
 and shared-core type checks pass. Screenshots cover 320-1920px,
 landscape and zoom-equivalent reflow. The game-client screenshots were inspected.
 The active progression matrix includes legal goal claims and modification
-purchases. Full completion is reachable, but the 7-14-day duration and meaningful
-opportunity gates fail; see BALANCE_REPORT.md. Publication remains blocked.
+purchases. All 900 active runs pass meaningful-opportunity and first-rebuild
+checks, but the 7-14-day duration gate still fails; see BALANCE_REPORT.md.
+Publication of this new candidate remains blocked.
 
 The current icon shelf uses nine locally bundled Lucide SVGs (license included
 in `assets/icons/`). Hover or focus exposes upgrade details. Touch taps inspect;
 the panel's Buy button confirms purchase. Price sorting and stable node ownership
-are retained. The current goal-cadence follow-up has a nine-run diagnostic;
-the prior 900-run report does not validate its newer grouping.
+are retained. The latest matrix covers the grouped goals, revised price curve,
+all 900 active runs and 12 continuous/idle controls.
 
 - `npm test`: Workshop regression tests plus all preserved Classic unit tests.
 - `npm run check`: checked JavaScript for the shared core and content catalog.

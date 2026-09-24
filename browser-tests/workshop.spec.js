@@ -7,6 +7,24 @@ import { createFreshState as classicFresh } from "../classic/src/economy.js";
 import { exportSave as classicExport } from "../classic/src/persistence.js";
 
 const classicKey = "obsidian-clicker-save-v1";
+test("late equipment icons show their stronger multiplier and apply it once", async ({ page }) => {
+  await seed(page, preset("mature"));
+  await ready(page);
+  await page.evaluate(() => window.advanceTime(1));
+  const icon = page.locator('[data-upgrade="tray-3"]');
+  await icon.hover();
+  await expect(page.locator("#upgrade-preview")).toContainText("Casting Tray output x24");
+  const before = await game(page);
+  await icon.click();
+  const after = await game(page);
+  expect(after.upgrades).toContain("tray-3");
+  expect(after.obsidian).toBe(before.obsidian - UPGRADES.find((u) => u.id === "tray-3").cost);
+  expect(after.passiveRate).toBeCloseTo(before.passiveRate + before.unitRates.tray * 100 * 23);
+  await page.locator("#installed-summary").click();
+  await expect(page.locator('#installed-list [data-upgrade="tray-3"]')).toHaveAttribute("aria-disabled", "true");
+  expect(after.upgrades.filter((id) => id === "tray-3")).toHaveLength(1);
+});
+
 test("upgrade icons expose hover and keyboard details, including unaffordable items", async ({
   page,
 }) => {

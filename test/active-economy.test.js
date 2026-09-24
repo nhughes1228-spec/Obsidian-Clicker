@@ -8,6 +8,8 @@ import {
   purchasingOptions,
   advanceSimulation,
   reconcile,
+  producerCost,
+  affordableAmount,
 } from "../src/core.js";
 import {
   PRODUCERS,
@@ -15,6 +17,10 @@ import {
   GOALS,
   LEGACY_GOAL_IDS,
   SAVE_KEY,
+  BALANCE,
+  IMPROVEMENTS,
+  GOAL_MILESTONES,
+  equipmentCostUnits,
 } from "../src/content.js";
 import {
   exportSave,
@@ -26,6 +32,7 @@ import { activeGoals } from "../src/goals.js";
 import {
   evaluateGates,
   hasMeaningfulOpportunity,
+  simulate,
 } from "../tools/simulate-workshop.mjs";
 
 const near = (a, b) =>
@@ -33,6 +40,96 @@ const near = (a, b) =>
     Math.abs(a - b) <= Math.max(1e-8, Math.abs(b) * 1e-10),
     `${a} != ${b}`,
   );
+
+test("bulk prices are continuous, discounted, finite and consistent across batches", () => {
+  const s = createFreshState(0);
+  for (const owned of [0, 49, 50, 51, 100, 200, 1000]) {
+    for (const amount of [1, 10, 75]) {
+      const expected = Array.from({ length: amount }, (_, i) =>
+        BALANCE.costGrowth ** Math.min(owned + i, BALANCE.bulkThreshold) *
+        BALANCE.bulkGrowth ** Math.max(0, owned + i - BALANCE.bulkThreshold),
+      ).reduce((a, b) => a + b, 0);
+      near(equipmentCostUnits(owned, amount), expected);
+      s.producers.tray = owned;
+      near(producerCost(s, "tray", amount), Math.ceil(15 * expected - 1e-8));
+      assert.ok(producerCost(s, "tray", amount) <= Math.ceil(
+        15 * BALANCE.costGrowth ** owned *
+        (BALANCE.costGrowth ** amount - 1) / (BALANCE.costGrowth - 1),
+      ));
+    }
+  }
+  s.producers.tray = 49;
+  const cost = producerCost(s, "tray", 10);
+  s.obsidian = cost;
+  assert.equal(affordableAmount(s, "tray"), 10);
+  s.obsidian--;
+  assert.equal(affordableAmount(s, "tray"), 9);
+  s.research = ["purchasing"];
+  assert.equal(producerCost(s, "tray", 10), Math.ceil(15 * 0.9 * equipmentCostUnits(49, 10) - 1e-8));
+  s.producers.tray = BALANCE.maxOwned;
+  assert.equal(producerCost(s, "tray"), Infinity);
+  assert.equal(affordableAmount(s, "tray"), 0);
+});
+
+test("late improvements strengthen early equipment and previews use their actual multipliers", () => {
+  for (const u of IMPROVEMENTS) {
+    const s = funded();
+    s.producers[u.producer] = u.owned;
+    const before = deriveEconomy(s);
+    const command = { type: "buyUpgrade", id: u.id };
+    const preview = purchasePreview(s, command);
+    assert.ok(applyCommand(s, command).ok);
+    near(deriveEconomy(s).passiveRate, before.passiveRate * u.multiplier);
+    near(preview.passiveGain, before.passiveRate * (u.multiplier - 1));
+    assert.ok(u.multiplier >= 2);
+  }
+});
+
+test("equipment goals follow the shared bulk-price curve without changing rewards", () => {
+  const goals = GOAL_MILESTONES.filter((g) => g.lane === "equipment");
+  const costs = goals.map((g) => PRODUCERS.find((p) => p.id === g.producer).cost * equipmentCostUnits(0, g.target));
+  assert.deepEqual(costs, [...costs].sort((a, b) => a - b));
+  assert.equal(GOALS.reduce((n, g) => n + g.reward, 0), 1220);
+  assert.equal(GOAL_MILESTONES.length, 36);
+});
+
+test("fresh active strategies retain useful rebuilds and frequent purchase opportunities", () => {
+  for (const policy of ["greedy", "saving", "inexpensive"]) {
+    const r = simulate({ policy, cps: 7.5, seed: 75 });
+    assert.ok(r.completed, policy);
+    assert.equal(r.firstRebuild.session, 2, policy);
+    assert.ok(r.longestEarlyMeaningfulGap <= 120, policy);
+    assert.ok(r.longestLateMeaningfulGap <= 300, policy);
+  }
+});
+
+test("v4 rebalance migration preserves the entire account and retains the original recovery copy", () => {
+  const s = funded();
+  s.producers.tray = 200;
+  s.upgrades = ["tray-4", "tray-m150", "tool-0"];
+  s.research = ["casting"];
+  s.researchAwarded = 1;
+  s.rebuilds = 1;
+  reconcile(s);
+  while (activeGoals(s).some((g) => g && g.lane === "equipment" && g.producer === "tray")) {
+    const goal = activeGoals(s).find((g) => g?.lane === "equipment");
+    if (!applyCommand(s, { type: "claimGoal", id: goal.id }).ok) break;
+  }
+  const goal = activeGoals(s)[0];
+  applyCommand(s, { type: "claimGoal", id: goal.id });
+  applyCommand(s, { type: "buyModification", id: "tray" });
+  const envelope = JSON.parse(exportSave(s, 0));
+  envelope.version = 4;
+  const original = JSON.stringify(envelope);
+  const map = new Map([[SAVE_KEY, original]]);
+  const store = createSaveStore({ getItem: (k) => map.get(k) ?? null, setItem: (k, v) => map.set(k, v) }, () => 0);
+  const loaded = store.load();
+  assert.equal(loaded.error, null);
+  assert.deepEqual(loaded.state, s);
+  assert.ok(store.save(loaded.state).ok);
+  assert.equal(map.get(RECOVERY_KEY), original);
+  assert.deepEqual(parseSave(map.get(SAVE_KEY), 0), loaded.state);
+});
 function funded() {
   const s = createFreshState(0);
   s.obsidian = s.lifetimeObsidian = s.runObsidian = 1e15;

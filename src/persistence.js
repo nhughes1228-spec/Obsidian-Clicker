@@ -32,7 +32,7 @@ export function parseSave(text, now = Date.now()) {
     throw new Error(
       "This is not a Workshop save. Open Classic to use saves from the original edition.",
     );
-  if (![1, 2, 3, SAVE_VERSION].includes(envelope.version))
+  if (![1, 2, 3, 4, SAVE_VERSION].includes(envelope.version))
     throw new Error(
       "Unsupported save version. The original save has been left untouched.",
     );

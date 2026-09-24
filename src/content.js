@@ -1,9 +1,11 @@
 export const EDITION = "workshop";
-export const SAVE_VERSION = 4;
+export const SAVE_VERSION = 5;
 export const SAVE_KEY = "obsidian-clicker-workshop-v1";
 export const LOCK_KEY = "obsidian-clicker-workshop-writer";
 export const BALANCE = {
   costGrowth: 1.15,
+  bulkGrowth: 1.04,
+  bulkThreshold: 50,
   researchThreshold: 7e7,
   offlineSeconds: 86400,
   maxNumber: 1e150,
@@ -12,6 +14,15 @@ export const BALANCE = {
   supportPerBatch: 0.02,
   supportCap: 200,
 };
+export function equipmentCostUnits(owned, amount) {
+  const early = Math.min(amount, Math.max(0, BALANCE.bulkThreshold - owned));
+  const bulk = amount - early;
+  const series = (growth, start, count) =>
+    count ? growth ** start * (growth ** count - 1) / (growth - 1) : 0;
+  return series(BALANCE.costGrowth, owned, early) +
+    BALANCE.costGrowth ** BALANCE.bulkThreshold *
+      series(BALANCE.bulkGrowth, Math.max(0, owned - BALANCE.bulkThreshold), bulk);
+}
 export const PRODUCERS = [
   {
     id: "tray",
@@ -80,7 +91,7 @@ export const IMPROVEMENTS = [10, 25, 50, 100, 200].flatMap((owned, tier) =>
     name: `${p.name} Improvement ${ROMAN[MILESTONES.indexOf(owned)]}`,
     producer: p.id,
     owned,
-    cost: p.cost * [50, 500, 5000, 50000, 5000000][tier],
+    cost: p.cost * [37.5, 375, 3750, 50000, 5000000][tier],
     multiplier: 2,
   })),
 );
@@ -98,9 +109,16 @@ IMPROVEMENTS.push(
   ),
 );
 IMPROVEMENTS.sort((a, b) => a.owned - b.owned);
+// Late improvements let simple equipment remain useful beside larger facilities.
+const LATE_IMPROVEMENT_MULTIPLIERS = [24, 16, 10, 7, 5, 4, 3, 2];
+for (const upgrade of IMPROVEMENTS)
+  if (upgrade.owned >= 100)
+    upgrade.multiplier = LATE_IMPROVEMENT_MULTIPLIERS[
+      PRODUCERS.findIndex((p) => p.id === upgrade.producer)
+    ];
 export const TOOLS = [
   { cost: 25, base: 4, share: 0.01 },
-  { cost: 2500, base: 3, share: 0.01 },
+  { cost: 1875, base: 3, share: 0.01 },
   { cost: 50000, base: 5, share: 0.02 },
   { cost: 1e6, base: 10, share: 0.03 },
   { cost: 2e7, base: 30, share: 0.03 },
@@ -212,9 +230,8 @@ export const GOALS = [
     )
     .sort((a, b) => {
       const cost = (g) =>
-        (PRODUCERS.find((p) => p.id === g.producer).cost *
-          (BALANCE.costGrowth ** g.target - 1)) /
-        (BALANCE.costGrowth - 1);
+        PRODUCERS.find((p) => p.id === g.producer).cost *
+          equipmentCostUnits(0, g.target);
       return cost(a) - cost(b);
     }),
 ];
