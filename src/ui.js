@@ -8,6 +8,7 @@ import {
   BALANCE,
   SUPPORT_PRODUCERS,
   UPGRADE_ICONS,
+  RESEARCH_CATEGORIES,
 } from "./content.js";
 import {
   deriveEconomy,
@@ -16,6 +17,7 @@ import {
   purchasePreview,
 } from "./core.js";
 import { activeGoals, goalValue } from "./goals.js";
+import { researchUnlocked } from "./research.js";
 export const $ = (id) => document.getElementById(id);
 export function format(value) {
   if (!Number.isFinite(value)) return "Limit";
@@ -284,7 +286,7 @@ export function createUI(dispatch) {
       dispatch({ type: "buyResearch", id: r.id }),
     );
     $("research-list").append(row);
-    return { row, button };
+    return { row, button, desc };
   });
   const stats = [
     "Lifetime Obsidian",
@@ -298,6 +300,12 @@ export function createUI(dispatch) {
     $("statistics").append(term, value);
     return value;
   });
+  for (const category of RESEARCH_CATEGORIES) {
+    const option = make("option", "", category.name);
+    option.value = category.id;
+    $("research-filter").append(option);
+  }
+  $("research-filter").addEventListener("change", () => dispatch({ type: "render" }));
   for (const button of document.querySelectorAll("[data-quantity]"))
     button.addEventListener("click", () => {
       quantity = button.dataset.quantity;
@@ -519,6 +527,9 @@ export function createUI(dispatch) {
       });
     } else if (view === "research") {
       text($("research-points"), format(state.researchPoints));
+      const bonus = format(economy.knowledgeBonus * 100);
+      text($("knowledge-bonus"), `Knowledge bonus: +${bonus}% production from ${format(state.researchAwarded)} RP earned. Spending keeps this bonus.`);
+      $("knowledge-bonus").title = "Production bonus = 1% × square root of total Research Points earned through rebuilding. Applied once to equipment output, including production-based clicks.";
       text(
         $("rebuild-summary"),
         `Earn ${format(economy.availableResearch)} Research Points. Permanent improvements stay.`,
@@ -531,17 +542,37 @@ export function createUI(dispatch) {
         $("next-research"),
         `Next point at ${format(next)} lifetime Obsidian (${format(Math.max(0, next - state.lifetimeObsidian))} remaining).`,
       );
+      const focusedResearch = researchNodes.findIndex((n) => n.button === document.activeElement);
+      const filter = $("research-filter").value;
       RESEARCH.forEach((r, i) => {
         const purchased = state.research.includes(r.id),
           n = researchNodes[i];
+        const unlocked = researchUnlocked(state, r);
+        const nextInTrack = !r.track || RESEARCH.find((candidate) => candidate.track === r.track && !state.research.includes(candidate.id))?.id === r.id;
+        const category = r.category || (r.id === "starter" ? "rebuilding" : "workshop");
+        const parent = purchased ? $("completed-research-list") : $("research-list");
+        if (n.row.parentElement !== parent) parent.append(n.row);
+        n.row.hidden = purchased ? false : !nextInTrack || (filter !== "all" && category !== filter);
+        text(n.desc, r.description + (!unlocked ? ` Requires ${RESEARCH.find((item) => item.id === r.requires).name}.` : ""));
         text(n.button, purchased ? "Researched" : `${r.cost} RP`);
         n.button.disabled =
-          readOnly || purchased || state.researchPoints < r.cost;
+          readOnly || purchased || !unlocked || state.researchPoints < r.cost;
         n.button.setAttribute(
           "aria-label",
           `${r.name}: ${purchased ? "researched" : `${r.cost} Research Points`}`,
         );
       });
+      orderRows($("research-list"), RESEARCH.map((r, i) => ({ r, node: researchNodes[i].row }))
+        .filter(({ r }) => !state.research.includes(r.id))
+        .sort((a, b) => a.r.cost - b.r.cost || a.r.id.localeCompare(b.r.id)).map(({ node }) => node));
+      $("completed-research").hidden = state.research.length === 0;
+      text($("completed-research-summary"), `${state.research.length} research completed`);
+      if (focusedResearch >= 0 && researchNodes[focusedResearch].button.disabled) {
+        const track = RESEARCH[focusedResearch].track;
+        const nextIndex = RESEARCH.findIndex((r, i) => track && r.track === track && !researchNodes[i].row.hidden && !researchNodes[i].button.disabled);
+        if (nextIndex >= 0) researchNodes[nextIndex].button.focus();
+        else $("research-filter").focus();
+      }
       $("research-complete").hidden = state.research.length !== RESEARCH.length;
     }
     if ($("settings-dialog").open) {

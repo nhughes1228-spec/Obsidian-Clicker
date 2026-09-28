@@ -1,5 +1,52 @@
 # Obsidian Clicker: Workshop Edition
 
+## Standing Release Preference
+
+On September 27 the user instructed: "deploy every time." After completing and
+verifying requested changes, commit and push to the existing GitHub main and
+verify the Cloudflare deployment at https://clicker.obsidianwinds.org/ without
+asking for deployment permission again. Preserve the hosting origin and saves.
+Report blockers and failed checks honestly; do not silently weaken gates. The
+known legacy duration-gate failure is documented separately from functional
+verification and the independently deployed Cloudflare site.
+
+The September 27 Research expansion below is authorized for publication by
+this instruction; its earlier local-only status describes pre-release work.
+
+## September 27 Research Expansion (Local)
+
+Research now has 58 permanent purchases: the six original items retain their
+IDs, costs and effects; 52 additional purchases form 13 four-tier lines.
+Eight equipment-specific lines each add up to +100% output. Production Planning
+and Casting Practice each add up to +50%; Equipment Procurement adds an 8%
+discount after Better Purchasing. Prepared equipment adds up to 50 Trays and
+10 Racks to each rebuild (60 Trays including the original Starter Kit).
+Bonuses add within each line; independent categories multiply once.
+
+Earned Research Points automatically grant a Knowledge production multiplier:
+`1 + 0.01 * sqrt(researchAwarded)`. This uses lifetime awarded points, not the
+unspent balance or pending rebuild award. Spending cannot remove the bonus.
+It applies once to production, including the production-derived portion of
+clicks, not a second time to click output. Research purchases never happen
+automatically. The full shop costs 4,478 RP.
+
+The Research view filters Workshop, Equipment and Rebuilding, shows only the
+next unpurchased tier per line, and collapses completed items. Rebuild dialogs
+show the resulting Knowledge bonus and actual starter equipment. Save v6 accepts
+v1-v5 with the original recovery copy, balances and purchased IDs intact.
+Classic is unchanged. This expansion has not been pushed or deployed.
+
+The simulator now buys the cheapest unlocked research. After 32 RP earned it
+batches rebuilds for at least 25% more earned points and waits for the previous
+production rate to recover. `simulate({rebuildFraction: 0})` retains the
+immediate-funding comparison (with the recovery check). These are modeled
+player choices, not game restrictions. The old duration gate remains unchanged.
+
+Verification: 110 unit tests and 54 browser tests pass. All 900 active simulations
+complete the expanded shop in 4.67-17.01 days, with first rebuild in session 2
+and early/late opportunity checks passing. The old 7-14-day duration check still
+fails; continuous and idle control limitations are recorded in BALANCE_REPORT.md.
+
 ## September 23 Pacing Release
 
 The current local candidate eases equipment growth from 15% to 4% after 50
@@ -42,7 +89,7 @@ the previous game is preserved at `http://127.0.0.1:5174/classic/`.
 The original logo is retained in both editions, with a text fallback if missing.
 Use a static server rather than opening HTML directly: the game uses ES modules.
 
-Workshop starts fresh. It uses `obsidian-clicker-workshop-v1`, save version 5,
+Workshop starts fresh. It uses `obsidian-clicker-workshop-v1`, save version 6,
 and the `workshop` edition identifier. Classic retains its original
 `obsidian-clicker-save-v1` save, recovery slots, and independent writer lock.
 Neither edition imports the other's saves. Workshop does not read, clear,
@@ -79,8 +126,9 @@ There are no intermediate materials or dependencies between producer outputs.
   ordinary upgrades/research. There are no card duplicates or equipment slots.
 - Research grants `floor(sqrt(lifetimeObsidian / 70000000))` points minus all
   previously awarded points. Spending does not reduce the lifetime ledger.
-  Six single-purchase research improvements cost 32 RP in total. There are no
-  branches, equipment slots or secondary prestige layers.
+  The original six purchases still cost 32 RP; the expanded 58-item shop costs
+  4,478 RP. Linear tier prerequisites replace no existing purchase. There are no
+  mutually exclusive branches, equipment slots or secondary prestige layers.
 - Automatic Purchasing is optional and starts off. When enabled, it purchases
   the currently affordable producer with the shortest payback. It does not buy
   upgrades or research, and never rebuilds. It works offline as well as online.
@@ -111,8 +159,8 @@ Save validation rejects unsupported versions, unrelated data, negative/nonfinite
 numbers, oversized imports, fractional ownership, and inconsistent research
 accounting. Parts must equal claimed goal rewards minus modification spending;
 claimed goals require valid milestone records and unique IDs. Grouped milestones
-do not invalidate previously claimed entries. Versions 1-4 migrate additively,
-preserving the original raw save in recovery before writing version 5.
+do not invalidate previously claimed entries. Versions 1-5 migrate additively,
+preserving the original raw save in recovery before writing version 6.
 Historical equipment counts unavailable in version 1 start from current
 ownership; lifetime output and best rate remain intact. Unknown item IDs and
 imported strings never become UI markup.

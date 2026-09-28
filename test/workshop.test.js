@@ -52,7 +52,7 @@ function near(a, b) {
 test("catalog has only the agreed production and research systems", () => {
   assert.equal(PRODUCERS.length, 8);
   assert.equal(UPGRADES.length, 61);
-  assert.equal(RESEARCH.length, 6);
+  assert.equal(RESEARCH.length, 58);
   const s = createFreshState(0);
   for (const key of [
     "momentum",
@@ -156,14 +156,14 @@ test("rebuild awards gross lifetime points once and preserves permanent progress
 test("all research bonuses, starter kit and automatic toggle match the catalog", () => {
   const s = funded(BALANCE.researchThreshold * 1024);
   applyCommand(s, { type: "rebuild" });
-  for (const r of RESEARCH)
+  for (const r of RESEARCH.slice(0, 6))
     assert.ok(applyCommand(s, { type: "buyResearch", id: r.id }).ok);
   assert.equal(s.researchPoints, 0);
   assert.equal(s.automation, false);
   s.lifetimeObsidian = BALANCE.researchThreshold * 1089;
   applyCommand(s, { type: "rebuild" });
   assert.equal(s.producers.tray, 10);
-  near(deriveEconomy(s).passiveRate, 5.625);
+  near(deriveEconomy(s).passiveRate, 5.625 * (1 + 0.01 * Math.sqrt(33)));
   near(deriveEconomy(s).clickPower, 2);
   const plain = structuredClone(s);
   plain.research = [];

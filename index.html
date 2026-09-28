@@ -101,13 +101,20 @@
             <h2>Research</h2>
             <strong><span id="research-points">0</span> RP</strong>
           </div>
+          <p id="knowledge-bonus" class="muted"></p>
           <div class="rebuild-section">
             <h3>Rebuild Workshop</h3>
             <p id="rebuild-summary"></p>
             <button id="rebuild-open">Rebuild Workshop</button>
             <p id="next-research" class="muted"></p>
           </div>
+          <label for="research-filter">Category</label>
+          <select id="research-filter"></select>
           <div id="research-list"></div>
+          <details id="completed-research" hidden>
+            <summary id="completed-research-summary">Completed research</summary>
+            <div id="completed-research-list"></div>
+          </details>
           <p id="research-complete" class="notice" hidden>
             Research complete. Your workshop can keep growing; rebuilding is
             optional.

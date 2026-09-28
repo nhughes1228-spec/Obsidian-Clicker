@@ -1,5 +1,20 @@
 Original prompt: Generate a cookie-clicker clone using the Obsidian Winds logo as the big cookie. We can figure out what all the other parts of the game will be called but for now let's focus on building the game itself.
 
+Standing release instruction (2026-09-27):
+- User: "deploy every time." Automatically commit/push completed, verified requested changes and verify the existing Cloudflare custom-domain release. Do not require another deployment request. Preserve the save origin and report failures/blockers rather than bypassing safeguards silently.
+- This explicitly authorizes publishing the Research expansion described below. Its local-only notes are historical pre-release status; the legacy duration gate remains unchanged and its known failure is not a functional-test pass.
+
+Research expansion (2026-09-27, local only):
+- Added 52 permanent purchases across 13 four-tier lines, retaining all six existing Research IDs/costs. Total 58 items / 4,478 RP. Includes individual equipment output, workshop output, clicking, equipment discounts, and additional starter Trays/Racks.
+- Knowledge bonus = 1% * sqrt(total RP awarded), applied once to equipment production and naturally to production-based clicks. Unspent points help, spending never removes the bonus, and unclaimed potential RP does not count. Original prestige formula unchanged.
+- New research.js centralizes additive category benefits and prerequisites; commands, previews, prices, live/offline production, resets and validation share the rules. Save v6 accepts v1-v5, keeping recovery and progress. Classic unchanged.
+- Research UI shows next tiers, category filters, completed disclosure, visible Knowledge bonus, and accurate rebuild starter quantities. Keyboard focus advances to the next affordable tier or category selector. Six-width browser tests pass.
+- Simulation now chooses cheapest unlocked research and, after 32 lifetime RP, banks 25% additional RP per rebuild and waits for prior output recovery. rebuildFraction=0 exposes immediate-funding comparison. No cooldown or batching restriction exists in the game. Immediate frequent resets can greatly slow the expanded arc; report them separately, not as a save/progression lock.
+- Nine-seed diagnostic: all nine complete; roughly 4.67-16.68 days with batching, first rebuild session 2, early/late opportunities pass. Strict old 7-14-day gate remains unchanged. Full matrix and final verification follow below.
+- Final matrix: all 900 active runs complete all 58 Research, all producers and 40 modifications in 4.673-17.009 days with 11-25 rebuilds. First rebuild session 2 throughout; early gaps <=120s and late <=190s. Original 7-14-day gate still fails. Of nine continuous controls, six finish at 12.55-16.69h and three greedy runs are censored at 24h with 49/51/53 purchases; idle controls intentionally do not research.
+- Final verification: 110 unit tests, 54 browser tests, checked JavaScript, allowlist build and diff whitespace checks pass. Research tier/prerequisite/payment/bonus/reset/preview/migration/offline coverage added. Game client and desktop/mobile Research screenshots inspected, no browser errors. Local server running at 5174.
+- No push or deployment. Preview: http://127.0.0.1:5174/.
+
 Pacing release authorized (2026-09-23):
 - User explicitly said "Deploy" after receiving the 1.3-4-day progression results. Publishing the tested rebalance to the existing GitHub main and Cloudflare custom domain; no origin change or Classic edits.
 - Historical entries below describe the pre-authorization hold. The original 7-14-day simulation gate remains unchanged and failing; this release is not evidence that it passed.

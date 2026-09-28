@@ -19,6 +19,7 @@ import { createSaveStore, parseSave, exportSave } from "./persistence.js";
 import { createUI, $, format } from "./ui.js";
 import { createAudio } from "./audio.js";
 import { activeGoals, goalValue } from "./goals.js";
+import { researchBenefits } from "./research.js";
 
 let state = createFreshState(),
   readOnly = true,
@@ -98,7 +99,11 @@ function replace(next) {
   render();
 }
 function rebuildText() {
-  return `Earn ${format(deriveEconomy(state).availableResearch)} Research Points.\n\nReset: current Obsidian, all equipment, and ordinary upgrades.\nKeep: Research Points, all research, Upgrade Parts, equipment modifications, goal progress, lifetime statistics, settings, and completed introductory objectives.${state.research.includes("starter") ? "\nStart with 10 Casting Trays." : "\nStart with an empty workshop and 1 base Obsidian per click, improved by any permanent click research."}`;
+  const points = deriveEconomy(state).availableResearch;
+  const benefits = researchBenefits({ ...state, researchAwarded: state.researchAwarded + points });
+  const starting = PRODUCERS.filter((p) => benefits.starters[p.id] > 0)
+    .map((p) => `${benefits.starters[p.id]} ${p.name}`).join(", ");
+  return `Earn ${format(points)} Research Points.\nKnowledge bonus becomes +${format(benefits.knowledgeBonus * 100)}% production.\n\nReset: current Obsidian, all equipment, and ordinary upgrades.\nKeep: Research Points, all research, Upgrade Parts, equipment modifications, goal progress, lifetime statistics, settings, and completed introductory objectives.\n${starting ? `Start with ${starting}.` : "Start with an empty workshop and 1 base Obsidian per click, improved by any permanent click research."}`;
 }
 $("logo-button").addEventListener("click", () => dispatch({ type: "click" }));
 const logo = $("logo-button").querySelector("img");

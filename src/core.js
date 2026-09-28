@@ -12,6 +12,7 @@ import {
   equipmentCostUnits,
 } from "./content.js";
 import { activeGoals, goalValue, modificationFactor } from "./goals.js";
+import { researchBenefits, researchUnlocked, researchDiscount } from "./research.js";
 const upgradesById = new Map(UPGRADES.map((u) => [u.id, u]));
 
 export function createFreshState(now = Date.now()) {
@@ -42,6 +43,7 @@ export function createFreshState(now = Date.now()) {
 }
 
 export function deriveEconomy(state) {
+  const research = researchBenefits(state);
   const multipliers = Object.fromEntries(PRODUCERS.map((p) => [p.id, 1]));
   for (const id of state.upgrades) {
     const u = upgradesById.get(id);
@@ -63,6 +65,8 @@ export function deriveEconomy(state) {
   const supportMultiplier =
     1 + Object.values(supportByProducer).reduce((sum, n) => sum + n, 0);
   const global =
+    (1 + research.knowledgeBonus) *
+    (1 + research.output) *
     supportMultiplier *
     (state.research.includes("equipment") ? 1.25 : 1) *
     (state.research.includes("cooling") ? 1.5 : 1);
@@ -70,6 +74,7 @@ export function deriveEconomy(state) {
     PRODUCERS.map((p) => [
       p.id,
       p.rate *
+        (1 + research.producers[p.id]) *
         modificationFactor(state, p.id, "output") *
         global *
         multipliers[p.id],
@@ -82,7 +87,8 @@ export function deriveEconomy(state) {
   const tools = TOOLS.filter((t) => state.upgrades.includes(t.id));
   const clickBase = 1 + tools.reduce((sum, t) => sum + t.base, 0);
   const clickShare = tools.reduce((sum, t) => sum + t.share, 0);
-  const clickMultiplier = state.research.includes("casting") ? 2 : 1;
+  const clickMultiplier =
+    (state.research.includes("casting") ? 2 : 1) * (1 + research.click);
   return {
     passiveRate,
     unitRates,
@@ -91,6 +97,7 @@ export function deriveEconomy(state) {
     clickBase,
     clickShare,
     clickMultiplier,
+    knowledgeBonus: research.knowledgeBonus,
     clickPower: (clickBase + passiveRate * clickShare) * clickMultiplier,
     availableResearch: Math.max(
       0,
@@ -117,6 +124,7 @@ export function producerCost(state, id, amount = 1) {
     p.cost *
       modificationFactor(state, p.id, "price") *
       (state.research.includes("purchasing") ? 0.9 : 1) *
+      (1 - researchDiscount(state)) *
       equipmentCostUnits(state.producers[id], amount);
   return Number.isFinite(result) && result <= BALANCE.maxNumber
     ? Math.ceil(result - 1e-8)
@@ -219,7 +227,12 @@ export function applyCommand(state, command) {
     state.modifications[mod.id]++;
   } else if (command.type === "buyResearch") {
     const r = RESEARCH.find((r) => r.id === command.id);
-    if (!r || state.research.includes(r.id) || state.researchPoints < r.cost)
+    if (
+      !r ||
+      !researchUnlocked(state, r) ||
+      state.research.includes(r.id) ||
+      state.researchPoints < r.cost
+    )
       return { ok: false };
     state.researchPoints -= r.cost;
     state.research.push(r.id);
@@ -232,12 +245,7 @@ export function applyCommand(state, command) {
     state.obsidian = 0;
     state.runObsidian = 0;
     state.upgrades = [];
-    state.producers = Object.fromEntries(
-      PRODUCERS.map((p) => [
-        p.id,
-        p.id === "tray" && state.research.includes("starter") ? 10 : 0,
-      ]),
-    );
+    state.producers = researchBenefits(state).starters;
     state.unlockedProducers = ["tray"];
     reconcile(state);
     return { ok: true, points };
@@ -288,6 +296,13 @@ export function purchasePreview(state, command, before = deriveEconomy(state)) {
       cost = u.cost;
       next = { ...state, upgrades: [...state.upgrades, u.id] };
     }
+  } else if (command.type === "buyResearch") {
+    const r = RESEARCH.find((r) => r.id === command.id);
+    valid = !!r && !state.research.includes(r.id) && researchUnlocked(state, r);
+    if (valid) {
+      cost = r.cost;
+      next = { ...state, research: [...state.research, r.id] };
+    }
   } else if (command.type === "buyModification") {
     const m = MODIFICATIONS.find((m) => m.id === command.id);
     cost = m
@@ -313,7 +328,7 @@ export function purchasePreview(state, command, before = deriveEconomy(state)) {
   return {
     valid,
     cost,
-    currency: command.type === "buyModification" ? "parts" : "obsidian",
+    currency: command.type === "buyModification" ? "parts" : command.type === "buyResearch" ? "research" : "obsidian",
     passiveGain: after.passiveRate - before.passiveRate,
     clickGain: after.clickPower - before.clickPower,
     supportGain: after.supportMultiplier - before.supportMultiplier,

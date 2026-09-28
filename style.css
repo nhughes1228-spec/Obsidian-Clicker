@@ -37,14 +37,25 @@ body {
   min-height: 100dvh;
 }
 button,
-input {
+input, select {
   font: inherit;
 }
 button,
 a,
-input {
+input, select {
   touch-action: manipulation;
   -webkit-tap-highlight-color: #c4a0eb26;
+}
+#research-filter {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  margin: 8px 0 12px;
+  padding: 8px 12px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 4px;
 }
 button {
   min-height: 44px;
@@ -78,7 +89,7 @@ button:disabled {
 }
 button:focus-visible,
 a:focus-visible,
-input:focus-visible {
+input:focus-visible, select:focus-visible {
   outline: 3px solid var(--accent);
   outline-offset: 4px;
 }

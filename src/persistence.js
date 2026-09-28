@@ -32,7 +32,7 @@ export function parseSave(text, now = Date.now()) {
     throw new Error(
       "This is not a Workshop save. Open Classic to use saves from the original edition.",
     );
-  if (![1, 2, 3, 4, SAVE_VERSION].includes(envelope.version))
+  if (![1, 2, 3, 4, 5, SAVE_VERSION].includes(envelope.version))
     throw new Error(
       "Unsupported save version. The original save has been left untouched.",
     );
@@ -76,6 +76,8 @@ export function parseSave(text, now = Date.now()) {
   }
   state.upgrades = ids(raw.upgrades, UPGRADES);
   state.research = ids(raw.research, RESEARCH);
+  if (RESEARCH.some((r) => state.research.includes(r.id) && r.requires && !state.research.includes(r.requires)))
+    throw new Error("Research prerequisites are inconsistent.");
   const spent = RESEARCH.filter((r) => state.research.includes(r.id)).reduce(
     (n, r) => n + r.cost,
     0,

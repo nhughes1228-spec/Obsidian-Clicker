@@ -1,5 +1,5 @@
 export const EDITION = "workshop";
-export const SAVE_VERSION = 5;
+export const SAVE_VERSION = 6;
 export const SAVE_KEY = "obsidian-clicker-workshop-v1";
 export const LOCK_KEY = "obsidian-clicker-workshop-writer";
 export const BALANCE = {
@@ -7,6 +7,7 @@ export const BALANCE = {
   bulkGrowth: 1.04,
   bulkThreshold: 50,
   researchThreshold: 7e7,
+  knowledgePerRootPoint: 0.01,
   offlineSeconds: 86400,
   maxNumber: 1e150,
   maxOwned: 10000,
@@ -129,6 +130,7 @@ export const TOOLS = [
   requires: tier ? `tool-${tier - 1}` : null,
 }));
 export const UPGRADES = [...TOOLS, ...IMPROVEMENTS];
+/** @type {Array<{id: string, name: string, cost: number, description: string, track?: string, category?: string, requires?: string, effect?: string, amount?: number, producer?: string}>} */
 export const RESEARCH = [
   {
     id: "casting",
@@ -167,6 +169,35 @@ export const RESEARCH = [
     description: "Producer output +50%.",
   },
 ];
+export const RESEARCH_CATEGORIES = [
+  { id: "all", name: "All research" },
+  { id: "workshop", name: "Workshop" },
+  { id: "equipment", name: "Equipment" },
+  { id: "rebuilding", name: "Rebuilding" },
+];
+const researchTracks = [
+  { id: "workshop-output", name: "Production Planning", category: "workshop", requires: "equipment", effect: "output", amounts: [0.05, 0.1, 0.15, 0.2], costs: [4, 16, 64, 256], describe: (n) => `Workshop production +${Math.round(n * 100)}%.` },
+  { id: "casting-practice", name: "Casting Practice", category: "workshop", requires: "casting", effect: "click", amounts: [0.05, 0.1, 0.15, 0.2], costs: [3, 12, 48, 192], describe: (n) => `Click output +${Math.round(n * 100)}%.` },
+  { id: "procurement", name: "Equipment Procurement", category: "workshop", requires: "purchasing", effect: "discount", amounts: [0.02, 0.02, 0.02, 0.02], costs: [5, 20, 80, 320], describe: () => "Equipment discount +2 percentage points, after Better Purchasing." },
+  { id: "starting-trays", name: "Prepared Casting Trays", category: "rebuilding", requires: "starter", effect: "starter", producer: "tray", amounts: [5, 10, 15, 20], costs: [4, 16, 64, 256], describe: (n) => `Start each rebuild with ${n} additional Casting Trays.` },
+  { id: "starting-racks", name: "Prepared Cooling Racks", category: "rebuilding", requires: "starter", effect: "starter", producer: "rack", amounts: [1, 2, 3, 4], costs: [6, 24, 96, 384], describe: (n) => `Start each rebuild with ${n} additional Cooling Racks.` },
+];
+for (const track of researchTracks)
+  track.amounts.forEach((amount, tier) => RESEARCH.push({
+    id: `${track.id}-${tier}`, track: track.id, category: track.category,
+    name: `${track.name} ${ROMAN[tier]}`, cost: track.costs[tier],
+    requires: tier ? `${track.id}-${tier - 1}` : track.requires,
+    effect: track.effect, amount, producer: track.producer,
+    description: track.describe(amount),
+  }));
+for (const [index, producer] of PRODUCERS.entries())
+  [3 + index, 12 + index * 3, 45 + index * 8, 150 + index * 20].forEach((cost, tier) => RESEARCH.push({
+    id: `research-${producer.id}-${tier}`, track: `research-${producer.id}`,
+    category: "equipment", name: `${producer.name} Research ${ROMAN[tier]}`,
+    cost, requires: tier ? `research-${producer.id}-${tier - 1}` : "equipment",
+    effect: "producer", producer: producer.id, amount: 0.25,
+    description: `${producer.name} production +25%.`,
+  }));
 export const OBJECTIVES = [
   {
     id: "produce",

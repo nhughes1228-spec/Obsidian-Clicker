@@ -18,6 +18,7 @@ import {
   MODIFICATIONS,
 } from "../src/content.js";
 import { activeGoals, goalValue } from "../src/goals.js";
+import { researchUnlocked } from "../src/research.js";
 
 function rng(seed) {
   return () =>
@@ -109,6 +110,7 @@ export function simulate({
   schedule = "visits",
   days = 21,
   automation = false,
+  rebuildFraction = 0.25,
 } = {}) {
   const state = createFreshState(0),
     random = rng(seed);
@@ -117,6 +119,7 @@ export function simulate({
     policy,
     cps,
     schedule,
+    rebuildFraction,
     firstProducer: null,
     firstUpgrade: null,
     firstRebuild: null,
@@ -210,11 +213,16 @@ export function simulate({
     // A strictly idle control cannot bootstrap after an early rebuild. Keep its
     // earning workshop intact instead of manufacturing free starter equipment.
     if (schedule === "idle") return false;
-    let next = RESEARCH.find((r) => !state.research.includes(r.id));
+    const nextResearch = () => RESEARCH.filter((r) => !state.research.includes(r.id) && researchUnlocked(state, r))
+      .sort((a, b) => a.cost - b.cost || a.id.localeCompare(b.id))[0];
+    let next = nextResearch();
     let rebuilt = false;
     if (
       next &&
+      (!rebuildRecovery || deriveEconomy(state).passiveRate >= rebuildRecovery.rate) &&
       state.researchPoints < next.cost &&
+      // After the initial shop, bank a batch of RP rather than rebuild for every tier.
+      (state.researchAwarded < 32 || deriveEconomy(state).availableResearch >= Math.ceil(state.researchAwarded * rebuildFraction)) &&
       deriveEconomy(state).availableResearch + state.researchPoints >= next.cost
     ) {
       const rate = deriveEconomy(state).passiveRate;
@@ -226,7 +234,7 @@ export function simulate({
       }
     }
     while (next && applyCommand(state, { type: "buyResearch", id: next.id }).ok)
-      next = RESEARCH.find((r) => !state.research.includes(r.id));
+      next = nextResearch();
     if (automation && state.research.includes("automatic") && !state.automation)
       applyCommand(state, { type: "automation", enabled: true });
     return rebuilt;
@@ -389,6 +397,9 @@ export function simulate({
       owned: { ...state.producers },
       modifications: { ...state.modifications },
       parts: state.upgradeParts,
+      researchOwned: state.research.length,
+      researchPoints: state.researchPoints,
+      researchAwarded: state.researchAwarded,
       claims: state.claimedGoals.length,
     });
     if (report.completed) break;

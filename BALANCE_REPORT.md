@@ -1,5 +1,40 @@
 # Workshop Progression Report
 
+## September 27: Expanded Research (Local)
+
+The shop now contains 58 permanent purchases costing 4,478 RP. Existing six
+purchases, prices and rewards are unchanged. Earned RP also grants a production
+bonus of `0.01 * sqrt(researchAwarded)`; spending never reduces it. Applied once
+to equipment output, it also benefits production-based clicks through that rate.
+
+Fresh matrix: `npm run simulate`, 900 active runs (100 seeds for each click-rate
+and strategy combination) plus 12 controls. All 900 finish all 58 research
+purchases, all eight producers and all 40 modifications. First rebuild remains
+session 2. Early opportunity gaps max out at 120 seconds, late gaps at 190 seconds.
+Elapsed completion ranges from 4.673 to 17.009 days, using 11-25 rebuilds. The
+unchanged 7-14-day gate fails, so the command still exits nonzero. This is not a
+claim that every old balance target is met.
+
+The expanded shop requires a revised modeled research policy: buy the cheapest
+unlocked item, wait to recover the previous workshop's rate, then after 32 RP
+earned bank at least 25% additional lifetime-awarded RP before rebuilding. This
+is a simulator choice, not a cooldown or requirement imposed on players.
+`simulate({rebuildFraction: 0})` provides an immediate-funding comparison. That
+comparison left the three greedy seed-1 runs incomplete after 21 days: repeatedly
+resetting for individual purchases remains a poor strategy, not a progress lock.
+Results are not directly comparable to the old catalog-order, immediate-reset
+six-item model. Raw sessions now record research count, balance and awarded RP.
+
+Six continuous controls finish in 12.55-16.69 hours. Three greedy controls reach
+49/51/53 research purchases but are censored at 24 hours; do not call them complete.
+The three idle-only controls still intentionally never rebuild or buy research,
+so they do not complete it. No forced idle wait or additional currency was added.
+
+Verification: 110 unit tests, 54 browser tests, checked JavaScript and asset build
+pass. Save v6 preserves v1-v5 progress and recovery copies. Screenshots cover
+Research at 320/390/768/1024/1440/1920 widths, filters, tier purchases and focus.
+Classic is untouched. This expansion has not been pushed or deployed.
+
 ## September 23: Stalls Repaired, Duration Still Below Target
 
 Release note: after reviewing these results, the user explicitly requested

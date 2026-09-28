@@ -7,6 +7,44 @@ import { createFreshState as classicFresh } from "../classic/src/economy.js";
 import { exportSave as classicExport } from "../classic/src/persistence.js";
 
 const classicKey = "obsidian-clicker-save-v1";
+for (const width of [320, 390, 768, 1024, 1440, 1920])
+  test(`expanded research tiers, filters and keyboard focus at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    const s = preset("mature");
+    s.lifetimeObsidian = s.runObsidian = s.obsidian = BALANCE.researchThreshold * 100 ** 2;
+    s.researchAwarded = 100;
+    s.research = ["casting", "equipment", "purchasing", "starter", "automatic", "cooling"];
+    s.researchPoints = 68;
+    reconcile(s);
+    await seed(page, s);
+    await ready(page);
+    await page.evaluate(() => window.advanceTime(1));
+    await page.locator("#research-tab").click();
+    await expect(page.locator("#knowledge-bonus")).toContainText("+10%");
+    await expect(page.locator('#research-list [data-research="casting-practice-1"]')).toBeHidden();
+    await page.locator("#research-filter").selectOption("equipment");
+    await expect(page.locator("#research-list .research-item:visible")).toHaveCount(8);
+    await page.locator("#research-filter").selectOption("workshop");
+    const tier = page.locator('[data-research="casting-practice-0"]');
+    await tier.focus();
+    await page.keyboard.press("Enter");
+    await expect(page.locator('[data-research="casting-practice-1"]')).toBeFocused();
+    await expect(page.locator("#knowledge-bonus")).toContainText("+10%");
+    expect((await game(page)).researchPoints).toBe(65);
+    expect((await game(page)).research).toContain("casting-practice-0");
+    await page.waitForTimeout(250);
+    await expect(page.locator('[data-research="casting-practice-1"]')).toBeFocused();
+    await page.locator("#research-filter").selectOption("rebuilding");
+    await expect(page.locator("#research-list .research-item:visible")).toHaveCount(2);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await mkdir("output/workshop/research", { recursive: true });
+    await page.screenshot({ path: `output/workshop/research/${width}.png`, fullPage: true });
+    await page.reload();
+    await page.waitForFunction(() => window.render_game_to_text);
+    expect((await game(page)).research).toContain("casting-practice-0");
+    expect((await game(page)).knowledgeBonus).toBe(0.1);
+  });
+
 test("late equipment icons show their stronger multiplier and apply it once", async ({ page }) => {
   await seed(page, preset("mature"));
   await ready(page);
@@ -309,7 +347,7 @@ function preset(kind = "fresh") {
     reconcile(s);
   }
   if (kind === "large") {
-    s.researchAwarded = 32;
+    s.researchAwarded = RESEARCH.reduce((sum, r) => sum + r.cost, 0);
     s.research = RESEARCH.map((r) => r.id);
   }
   return s;
@@ -399,10 +437,11 @@ test("research, rebuild confirmation, starter kit and automatic controls", async
   await page.locator("#confirm-action").click();
   expect((await game(page)).researchPoints).toBe(32);
   expect((await game(page)).obsidian).toBe(0);
-  for (const r of RESEARCH)
+  for (const r of RESEARCH.slice(0, 6))
     await page.locator(`[data-research="${r.id}"]`).click();
-  expect((await game(page)).researchComplete).toBe(true);
-  await expect(page.locator("#research-complete")).toBeVisible();
+  expect((await game(page)).researchComplete).toBe(false);
+  await expect(page.locator("#research-complete")).toBeHidden();
+  await expect(page.locator("#knowledge-bonus")).toContainText("5.66%");
   await page.locator("#production-tab").click();
   await page.locator("#automation").check();
   expect((await game(page)).automation).toBe(true);
@@ -412,7 +451,7 @@ test("research, rebuild confirmation, starter kit and automatic controls", async
       window.render_game_to_text &&
       !JSON.parse(window.render_game_to_text()).readOnly,
   );
-  expect((await game(page)).researchComplete).toBe(true);
+  expect((await game(page)).researchComplete).toBe(false);
   expect((await game(page)).automation).toBe(true);
 });
 
